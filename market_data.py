@@ -302,131 +302,7 @@ def download_sp500() -> pd.DataFrame:
 
 
 # ============================================================
-# FRED — SÉRIE INDIVIDUAL
-# ============================================================
-
-def download_fred_series(
-    series_id: str,
-    name: str,
-) -> pd.DataFrame:
-
-    url = (
-        "https://fred.stlouisfed.org/"
-        "graph/fredgraph.csv"
-        f"?id={series_id}"
-    )
-
-    _print(
-        f"→ Baixando {name} [{series_id}]..."
-    )
-
-    response = _http_get(
-        url=url,
-        read_timeout=READ_TIMEOUT,
-    )
-
-    if not response.content:
-
-        raise RuntimeError(
-            f"FRED retornou resposta vazia: "
-            f"{series_id}"
-        )
-
-    try:
-
-        df = pd.read_csv(
-            io.StringIO(
-                response.text
-            )
-        )
-
-    except Exception as error:
-
-        raise RuntimeError(
-            f"Falha ao interpretar CSV FRED "
-            f"{series_id}: {error}"
-        ) from error
-
-    if (
-        df is None
-        or df.empty
-        or len(df.columns) < 2
-    ):
-
-        raise RuntimeError(
-            f"Série FRED inválida: {series_id}"
-        )
-
-    date_column = (
-        df.columns[0]
-    )
-
-    value_column = (
-        df.columns[1]
-    )
-
-    df = df.rename(
-        columns={
-            date_column: "date",
-            value_column: name,
-        }
-    )
-
-    df["date"] = pd.to_datetime(
-        df["date"],
-        errors="coerce",
-    )
-
-    df[name] = pd.to_numeric(
-        df[name],
-        errors="coerce",
-    )
-
-    df = df[
-        df["date"]
-        >=
-        pd.Timestamp(
-            FRED_START_DATE
-        )
-    ].copy()
-
-    df = (
-        df
-        .dropna(
-            subset=["date"]
-        )
-        .sort_values("date")
-        .drop_duplicates(
-            subset="date",
-            keep="last",
-        )
-        .reset_index(drop=True)
-    )
-
-    valid = df.dropna(
-        subset=[name]
-    )
-
-    if valid.empty:
-
-        raise RuntimeError(
-            f"Série FRED sem valores válidos: "
-            f"{series_id}"
-        )
-
-    _print(
-        f"   ✅ {name}: "
-        f"{valid['date'].min().date()} "
-        f"→ "
-        f"{valid['date'].max().date()} "
-        f"| {len(valid):,} obs."
-    )
-
-    return df
-
-
-# ============================================================
-# FRED — TODAS AS SÉRIES
+# FRED — DOWNLOAD EM BLOCO
 # ============================================================
 
 def download_all_fred() -> Dict[str, pd.DataFrame]:
@@ -436,70 +312,172 @@ def download_all_fred() -> Dict[str, pd.DataFrame]:
     _print("BAIXANDO DADOS MACRO — FRED")
     _print("=" * 80)
 
-    fred_data = {}
+    series_ids = list(FRED_SERIES.values())
 
-    total = len(
-        FRED_SERIES
+    reverse_map = {
+        series_id: name
+        for name, series_id in FRED_SERIES.items()
+    }
+
+    ids_string = ",".join(series_ids)
+
+    url = (
+        "https://fred.stlouisfed.org/graph/"
+        "fredgraph.csv"
+        f"?id={ids_string}"
     )
 
-    success = 0
+    _print(
+        f"→ Baixando {len(series_ids)} séries "
+        "em UMA única requisição..."
+    )
 
-    for position, (
-        name,
-        series_id,
-    ) in enumerate(
-        FRED_SERIES.items(),
-        start=1,
-    ):
+    _print(
+        "→ Séries: "
+        + ", ".join(series_ids)
+    )
 
-        _print(
-            f"[{position}/{total}] "
-            f"{name}"
+    try:
+
+        response = requests.get(
+            url,
+            timeout=(10, 60),
+            headers={
+                "User-Agent": (
+                    "Mozilla/5.0 "
+                    "(compatible; SP500-Cycle-Atlas/1.0)"
+                )
+            },
         )
 
-        try:
+        response.raise_for_status()
 
-            df = download_fred_series(
-                series_id=series_id,
-                name=name,
+    except Exception as error:
+
+        raise RuntimeError(
+            "Falha no download conjunto do FRED: "
+            f"{type(error).__name__}: {error}"
+        ) from error
+
+    _print(
+        f"→ Resposta FRED recebida: "
+        f"{len(response.content) / 1024:.1f} KB"
+    )
+
+    try:
+
+        raw = pd.read_csv(
+            io.StringIO(response.text)
+        )
+
+    except Exception as error:
+
+        raise RuntimeError(
+            "Falha ao interpretar CSV conjunto do FRED: "
+            f"{error}"
+        ) from error
+
+    if raw is None or raw.empty:
+
+        raise RuntimeError(
+            "FRED retornou dataset vazio."
+        )
+
+    raw = raw.rename(
+        columns={
+            raw.columns[0]: "date"
+        }
+    )
+
+    raw["date"] = pd.to_datetime(
+        raw["date"],
+        errors="coerce",
+    )
+
+    raw = raw[
+        raw["date"] >= pd.Timestamp(FRED_START_DATE)
+    ].copy()
+
+    for series_id in series_ids:
+
+        if series_id in raw.columns:
+
+            raw[series_id] = pd.to_numeric(
+                raw[series_id],
+                errors="coerce",
             )
 
-            fred_data[name] = df
+    fred_data = {}
+    success = 0
+
+    for series_id in series_ids:
+
+        name = reverse_map[series_id]
+
+        if series_id not in raw.columns:
+
+            _print(
+                f"⚠️ Série ausente: {name} [{series_id}]"
+            )
+
+            fred_data[name] = pd.DataFrame(
+                columns=["date", name]
+            )
+
+            continue
+
+        temp = raw[["date", series_id]].copy()
+
+        temp = temp.rename(
+            columns={
+                series_id: name
+            }
+        )
+
+        temp = (
+            temp
+            .dropna(subset=["date"])
+            .sort_values("date")
+            .drop_duplicates(
+                subset="date",
+                keep="last",
+            )
+            .reset_index(drop=True)
+        )
+
+        valid = temp.dropna(
+            subset=[name]
+        )
+
+        if valid.empty:
+
+            _print(
+                f"⚠️ Sem dados válidos: {name} [{series_id}]"
+            )
+
+        else:
 
             success += 1
 
-        except Exception as error:
-
             _print(
-                f"   ❌ Falha em "
-                f"{name} [{series_id}]"
+                f"✅ {name:24s} "
+                f"{valid['date'].min().date()} "
+                f"→ {valid['date'].max().date()} "
+                f"| {len(valid):,} obs."
             )
 
-            _print(
-                f"   {type(error).__name__}: "
-                f"{error}"
-            )
-
-            fred_data[name] = (
-                pd.DataFrame(
-                    columns=[
-                        "date",
-                        name,
-                    ]
-                )
-            )
+        fred_data[name] = temp
 
     _print("")
-
     _print(
-        f"FRED concluído: "
-        f"{success}/{total} séries válidas."
+        f"✅ FRED concluído: "
+        f"{success}/{len(series_ids)} séries."
     )
 
     if success == 0:
 
         raise RuntimeError(
-            "Nenhuma série FRED foi obtida."
+            "Nenhuma série FRED válida."
         )
 
     return fred_data
