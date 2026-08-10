@@ -343,43 +343,85 @@ DEFAULT_EXISTING_POSITION = "HOLD"
 #
 # São apenas política operacional de acompanhamento.
 #
-# Depois do backtest:
+# Política operacional definida a partir do estudo:
 #
-# - exposição estrutural deve permanecer alta;
-# - reserva deve ser pequena;
-# - reserva pode ser usada em stress.
+# - valuation regula a agressividade dos NOVOS aportes;
+# - posição estrutural permanece HOLD;
+# - deterioração confirmada aumenta a reserva;
+# - stress sem deterioração macro ampla favorece acumulação;
+# - reserva acumulada pode ser utilizada gradualmente.
 # ============================================================
 
 CONTRIBUTION_POLICY = {
+
+    # --------------------------------------------------------
+    # GREEN
+    # Expansão saudável.
+    # Novo aporte integralmente direcionado ao S&P 500.
+    # --------------------------------------------------------
 
     REGIME_GREEN: {
         "equity": 1.00,
         "reserve": 0.00,
     },
 
+    # --------------------------------------------------------
+    # YELLOW
+    # Bull market ainda ativo, porém valuation extremo.
+    #
+    # CAPE reduz a agressividade do NOVO aporte.
+    # A posição existente permanece HOLD.
+    # --------------------------------------------------------
+
     REGIME_YELLOW: {
-        "equity": 0.80,
-        "reserve": 0.20,
+        "equity": 0.60,
+        "reserve": 0.40,
     },
+
+    # --------------------------------------------------------
+    # ORANGE
+    # Deterioração confirmada em múltiplas dimensões.
+    # --------------------------------------------------------
 
     REGIME_ORANGE: {
-        "equity": 0.70,
-        "reserve": 0.30,
+        "equity": 0.30,
+        "reserve": 0.70,
     },
 
+    # --------------------------------------------------------
+    # RED
+    # Stress estrutural + deterioração macro.
+    #
+    # Mantemos uma parcela de aporte para não depender
+    # de acertar exatamente o fundo do mercado.
+    # --------------------------------------------------------
+
     REGIME_RED: {
-        "equity": 0.70,
-        "reserve": 0.30,
+        "equity": 0.20,
+        "reserve": 0.80,
     },
+
+    # --------------------------------------------------------
+    # BLUE
+    # Drawdown estrutural sem deterioração macro ampla.
+    #
+    # Novo aporte volta integralmente ao S&P 500.
+    # A reserva acumulada pode ser liberada gradualmente.
+    # --------------------------------------------------------
 
     REGIME_BLUE: {
         "equity": 1.00,
         "reserve": 0.00,
     },
 
+    # --------------------------------------------------------
+    # NEUTRAL
+    # Evidência inconclusiva.
+    # --------------------------------------------------------
+
     REGIME_NEUTRAL: {
-        "equity": 0.90,
-        "reserve": 0.10,
+        "equity": 0.50,
+        "reserve": 0.50,
     },
 }
 
