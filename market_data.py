@@ -6,7 +6,7 @@
 # Responsável por:
 #
 # - S&P 500 via Yahoo Finance
-# - CAPE via base de Robert Shiller
+# - CAPE via Robert J. Shiller
 # - séries macroeconômicas via FRED
 # - padronização mensal
 # - cálculo das features básicas
@@ -20,6 +20,7 @@
 from __future__ import annotations
 
 import io
+import time
 import warnings
 from typing import Dict
 
@@ -40,29 +41,98 @@ warnings.filterwarnings("ignore")
 
 
 # ============================================================
+# CONFIGURAÇÕES DE REDE
+# ============================================================
+
+CONNECT_TIMEOUT = 10
+READ_TIMEOUT = 20
+SHILLER_READ_TIMEOUT = 25
+HTTP_RETRIES = 2
+
+
+# ============================================================
 # UTILITÁRIOS
 # ============================================================
 
-def _print(message: str):
-    print(message)
-
-
-def _normalize_month(date_series):
+def _print(message: str = ""):
     """
-    Converte datas para o primeiro dia do mês.
+    Print sem buffer.
+
+    Fundamental para visualizar imediatamente
+    em qual etapa o GitHub Actions está.
     """
-    return (
-        pd.to_datetime(date_series)
-        .dt.to_period("M")
-        .dt.to_timestamp()
+
+    print(
+        message,
+        flush=True,
     )
 
 
 def _safe_numeric(series):
+    return pd.to_numeric(
+        series,
+        errors="coerce",
+    )
+
+
+def _http_get(
+    url: str,
+    read_timeout: int = READ_TIMEOUT,
+):
     """
-    Converte série para numérico sem quebrar execução.
+    GET com timeout e número limitado de tentativas.
+
+    Evita deixar o GitHub Actions preso indefinidamente.
     """
-    return pd.to_numeric(series, errors="coerce")
+
+    last_error = None
+
+    headers = {
+        "User-Agent":
+            "Mozilla/5.0 "
+            "(compatible; SP500-Cycle-Atlas/1.0)"
+    }
+
+    for attempt in range(
+        1,
+        HTTP_RETRIES + 1,
+    ):
+
+        try:
+
+            _print(
+                f"   tentativa {attempt}/{HTTP_RETRIES}"
+            )
+
+            response = requests.get(
+                url,
+                timeout=(
+                    CONNECT_TIMEOUT,
+                    read_timeout,
+                ),
+                headers=headers,
+            )
+
+            response.raise_for_status()
+
+            return response
+
+        except Exception as error:
+
+            last_error = error
+
+            _print(
+                f"   ⚠️ {type(error).__name__}: "
+                f"{error}"
+            )
+
+            if attempt < HTTP_RETRIES:
+                time.sleep(1)
+
+    raise RuntimeError(
+        f"Falha após {HTTP_RETRIES} tentativas. "
+        f"Último erro: {last_error}"
+    )
 
 
 # ============================================================
@@ -71,53 +141,135 @@ def _safe_numeric(series):
 
 def download_sp500() -> pd.DataFrame:
 
+    _print("")
     _print("=" * 80)
-    _print("BAIXANDO S&P 500")
+    _print("BAIXANDO S&P 500 — YAHOO FINANCE")
     _print("=" * 80)
 
-    data = yf.download(
-        SP500_TICKER,
-        start=MARKET_START_DATE,
-        auto_adjust=False,
-        progress=False,
+    _print(
+        f"Ticker: {SP500_TICKER}"
     )
 
-    if data is None or data.empty:
+    _print(
+        f"Início histórico: {MARKET_START_DATE}"
+    )
+
+    _print(
+        "→ Conectando ao Yahoo Finance..."
+    )
+
+    try:
+
+        data = yf.download(
+            SP500_TICKER,
+            start=MARKET_START_DATE,
+            auto_adjust=False,
+            progress=False,
+            threads=False,
+            timeout=20,
+        )
+
+    except Exception as error:
+
         raise RuntimeError(
-            "Não foi possível baixar dados do S&P 500."
+            "Falha ao consultar Yahoo Finance: "
+            f"{type(error).__name__}: {error}"
+        ) from error
+
+    _print(
+        "→ Resposta do Yahoo recebida."
+    )
+
+    if (
+        data is None
+        or data.empty
+    ):
+
+        raise RuntimeError(
+            "Yahoo Finance retornou dataset vazio."
         )
 
     # --------------------------------------------------------
-    # Corrige MultiIndex eventualmente retornado pelo yfinance
+    # Corrigir MultiIndex do yfinance
     # --------------------------------------------------------
 
-    if isinstance(data.columns, pd.MultiIndex):
+    if isinstance(
+        data.columns,
+        pd.MultiIndex,
+    ):
 
         try:
-            close = data["Close"][SP500_TICKER]
+
+            close = (
+                data["Close"][
+                    SP500_TICKER
+                ]
+            )
 
         except Exception:
-            close = data["Close"].iloc[:, 0]
+
+            close = (
+                data["Close"]
+                .iloc[:, 0]
+            )
 
     else:
 
+        if "Close" not in data.columns:
+
+            raise RuntimeError(
+                "Coluna Close não encontrada "
+                "nos dados do Yahoo."
+            )
+
         close = data["Close"]
 
+    # --------------------------------------------------------
+    # DataFrame diário
+    # --------------------------------------------------------
+
+    close_values = np.asarray(
+        close
+    ).reshape(-1)
+
     df = pd.DataFrame({
-        "date": pd.to_datetime(close.index),
-        "sp500": pd.to_numeric(close.values, errors="coerce"),
+
+        "date":
+            pd.to_datetime(
+                close.index
+            ),
+
+        "sp500":
+            pd.to_numeric(
+                close_values,
+                errors="coerce",
+            ),
     })
 
     df = (
         df
-        .dropna()
+        .dropna(
+            subset=[
+                "date",
+                "sp500",
+            ]
+        )
         .sort_values("date")
-        .drop_duplicates("date")
+        .drop_duplicates(
+            subset="date",
+            keep="last",
+        )
         .reset_index(drop=True)
     )
 
+    if df.empty:
+
+        raise RuntimeError(
+            "S&P 500 ficou vazio após limpeza."
+        )
+
     # --------------------------------------------------------
-    # Transformação mensal
+    # Mensal
     # --------------------------------------------------------
 
     df = (
@@ -131,17 +283,26 @@ def download_sp500() -> pd.DataFrame:
 
     _print(
         f"✅ S&P 500: "
-        f"{df['date'].min().date()} → "
+        f"{df['date'].min().date()} "
+        f"→ "
         f"{df['date'].max().date()}"
     )
 
-    _print(f"Observações mensais: {len(df):,}")
+    _print(
+        f"✅ Observações mensais: "
+        f"{len(df):,}"
+    )
+
+    _print(
+        f"✅ Último fechamento: "
+        f"{df['sp500'].iloc[-1]:,.2f}"
+    )
 
     return df
 
 
 # ============================================================
-# FRED
+# FRED — SÉRIE INDIVIDUAL
 # ============================================================
 
 def download_fred_series(
@@ -149,40 +310,60 @@ def download_fred_series(
     name: str,
 ) -> pd.DataFrame:
 
-    """
-    Faz download de uma série FRED usando CSV público.
-
-    Não exige API key.
-    """
-
     url = (
-        "https://fred.stlouisfed.org/graph/"
-        f"fredgraph.csv?id={series_id}"
+        "https://fred.stlouisfed.org/"
+        "graph/fredgraph.csv"
+        f"?id={series_id}"
     )
 
-    _print(f"Baixando {name} [{series_id}]...")
-
-    response = requests.get(
-        url,
-        timeout=60,
-        headers={
-            "User-Agent": "Mozilla/5.0"
-        },
+    _print(
+        f"→ Baixando {name} [{series_id}]..."
     )
 
-    response.raise_for_status()
-
-    df = pd.read_csv(
-        io.StringIO(response.text)
+    response = _http_get(
+        url=url,
+        read_timeout=READ_TIMEOUT,
     )
 
-    if df.empty:
+    if not response.content:
+
         raise RuntimeError(
-            f"Série FRED vazia: {series_id}"
+            f"FRED retornou resposta vazia: "
+            f"{series_id}"
         )
 
-    date_column = df.columns[0]
-    value_column = df.columns[1]
+    try:
+
+        df = pd.read_csv(
+            io.StringIO(
+                response.text
+            )
+        )
+
+    except Exception as error:
+
+        raise RuntimeError(
+            f"Falha ao interpretar CSV FRED "
+            f"{series_id}: {error}"
+        ) from error
+
+    if (
+        df is None
+        or df.empty
+        or len(df.columns) < 2
+    ):
+
+        raise RuntimeError(
+            f"Série FRED inválida: {series_id}"
+        )
+
+    date_column = (
+        df.columns[0]
+    )
+
+    value_column = (
+        df.columns[1]
+    )
 
     df = df.rename(
         columns={
@@ -202,28 +383,50 @@ def download_fred_series(
     )
 
     df = df[
-        df["date"] >= pd.Timestamp(FRED_START_DATE)
-    ]
+        df["date"]
+        >=
+        pd.Timestamp(
+            FRED_START_DATE
+        )
+    ].copy()
 
     df = (
         df
-        .dropna(subset=["date"])
+        .dropna(
+            subset=["date"]
+        )
         .sort_values("date")
-        .drop_duplicates("date")
+        .drop_duplicates(
+            subset="date",
+            keep="last",
+        )
         .reset_index(drop=True)
     )
 
+    valid = df.dropna(
+        subset=[name]
+    )
+
+    if valid.empty:
+
+        raise RuntimeError(
+            f"Série FRED sem valores válidos: "
+            f"{series_id}"
+        )
+
     _print(
-        f"✅ {name}: "
-        f"{df['date'].min().date()} → "
-        f"{df['date'].max().date()}"
+        f"   ✅ {name}: "
+        f"{valid['date'].min().date()} "
+        f"→ "
+        f"{valid['date'].max().date()} "
+        f"| {len(valid):,} obs."
     )
 
     return df
 
 
 # ============================================================
-# TODAS AS SÉRIES FRED
+# FRED — TODAS AS SÉRIES
 # ============================================================
 
 def download_all_fred() -> Dict[str, pd.DataFrame]:
@@ -235,26 +438,69 @@ def download_all_fred() -> Dict[str, pd.DataFrame]:
 
     fred_data = {}
 
-    for name, series_id in FRED_SERIES.items():
+    total = len(
+        FRED_SERIES
+    )
+
+    success = 0
+
+    for position, (
+        name,
+        series_id,
+    ) in enumerate(
+        FRED_SERIES.items(),
+        start=1,
+    ):
+
+        _print(
+            f"[{position}/{total}] "
+            f"{name}"
+        )
 
         try:
 
-            fred_data[name] = download_fred_series(
-                series_id,
-                name,
+            df = download_fred_series(
+                series_id=series_id,
+                name=name,
             )
+
+            fred_data[name] = df
+
+            success += 1
 
         except Exception as error:
 
             _print(
-                f"❌ Falha em {name} [{series_id}]"
+                f"   ❌ Falha em "
+                f"{name} [{series_id}]"
             )
 
-            _print(str(error))
-
-            fred_data[name] = pd.DataFrame(
-                columns=["date", name]
+            _print(
+                f"   {type(error).__name__}: "
+                f"{error}"
             )
+
+            fred_data[name] = (
+                pd.DataFrame(
+                    columns=[
+                        "date",
+                        name,
+                    ]
+                )
+            )
+
+    _print("")
+
+    _print(
+        f"FRED concluído: "
+        f"{success}/{total} séries válidas."
+    )
+
+    if success == 0:
+
+        raise RuntimeError(
+            "Nenhuma série FRED foi obtida."
+        )
 
     return fred_data
 
@@ -272,51 +518,99 @@ def download_shiller() -> pd.DataFrame:
 
     last_error = None
 
-    for url in SHILLER_URLS:
+    for source_number, url in enumerate(
+        SHILLER_URLS,
+        start=1,
+    ):
 
         try:
 
-            _print(f"Tentando: {url}")
-
-            response = requests.get(
-                url,
-                timeout=90,
-                headers={
-                    "User-Agent": "Mozilla/5.0"
-                },
+            _print(
+                f"[Fonte {source_number}/"
+                f"{len(SHILLER_URLS)}]"
             )
 
-            response.raise_for_status()
+            _print(
+                f"→ {url}"
+            )
 
-            excel_data = io.BytesIO(
-                response.content
+            response = _http_get(
+                url=url,
+                read_timeout=(
+                    SHILLER_READ_TIMEOUT
+                ),
+            )
+
+            content = response.content
+
+            if len(content) < 10_000:
+
+                raise RuntimeError(
+                    "Arquivo Shiller muito pequeno "
+                    "para ser uma planilha válida."
+                )
+
+            _print(
+                f"→ Arquivo recebido: "
+                f"{len(content) / 1024:.1f} KB"
+            )
+
+            excel_data = (
+                io.BytesIO(content)
+            )
+
+            _print(
+                "→ Lendo planilha XLS..."
+            )
+
+            try:
+
+                raw = pd.read_excel(
+                    excel_data,
+                    sheet_name="Data",
+                    header=None,
+                    engine="xlrd",
+                )
+
+            except Exception as error:
+
+                raise RuntimeError(
+                    "Falha ao abrir XLS Shiller. "
+                    "Verifique se 'xlrd' está "
+                    "no requirements.txt. "
+                    f"Erro: {error}"
+                ) from error
+
+            _print(
+                f"→ Planilha lida: "
+                f"{raw.shape[0]:,} linhas × "
+                f"{raw.shape[1]:,} colunas"
             )
 
             # ------------------------------------------------
-            # A planilha Shiller normalmente possui cabeçalhos
-            # antes da tabela principal.
-            # ------------------------------------------------
-
-            raw = pd.read_excel(
-                excel_data,
-                sheet_name="Data",
-                header=None,
-            )
-
-            # ------------------------------------------------
-            # Localiza automaticamente a linha que contém Date
+            # Localizar linha do cabeçalho
             # ------------------------------------------------
 
             header_row = None
 
-            for i in range(min(20, len(raw))):
+            for i in range(
+                min(
+                    20,
+                    len(raw)
+                )
+            ):
 
-                row = raw.iloc[i].astype(str)
+                first_values = (
+                    raw.iloc[i]
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                )
 
-                if row.str.contains(
-                    "Date",
-                    case=False,
-                    na=False,
+                if (
+                    first_values
+                    ==
+                    "date"
                 ).any():
 
                     header_row = i
@@ -325,27 +619,48 @@ def download_shiller() -> pd.DataFrame:
             if header_row is None:
 
                 raise RuntimeError(
-                    "Cabeçalho da planilha Shiller "
-                    "não localizado."
+                    "Linha de cabeçalho 'Date' "
+                    "não localizada na base Shiller."
                 )
 
-            headers = raw.iloc[header_row].tolist()
+            _print(
+                f"→ Cabeçalho detectado "
+                f"na linha {header_row}"
+            )
 
-            data = raw.iloc[
-                header_row + 1:
-            ].copy()
+            headers = (
+                raw.iloc[
+                    header_row
+                ]
+                .tolist()
+            )
+
+            data = (
+                raw.iloc[
+                    header_row + 1:
+                ]
+                .copy()
+            )
 
             data.columns = headers
 
             # ------------------------------------------------
-            # Identifica Date
+            # Date
             # ------------------------------------------------
 
             date_col = None
 
-            for column in data.columns:
+            for column in (
+                data.columns
+            ):
 
-                if str(column).strip().lower() == "date":
+                if (
+                    str(column)
+                    .strip()
+                    .lower()
+                    ==
+                    "date"
+                ):
 
                     date_col = column
                     break
@@ -353,61 +668,66 @@ def download_shiller() -> pd.DataFrame:
             if date_col is None:
 
                 raise RuntimeError(
-                    "Coluna Date não encontrada "
-                    "na base Shiller."
+                    "Coluna Date não encontrada."
                 )
 
             # ------------------------------------------------
-            # Identifica CAPE
+            # CAPE
             # ------------------------------------------------
 
             cape_col = None
 
-            possible_names = [
-                "cape",
-                "cyclically adjusted",
-                "p/e10",
-            ]
+            for column in (
+                data.columns
+            ):
 
-            for column in data.columns:
+                normalized = (
+                    str(column)
+                    .strip()
+                    .lower()
+                )
 
-                text = str(column).lower()
-
-                if any(
-                    name in text
-                    for name in possible_names
-                ):
+                if normalized in [
+                    "cape",
+                    "p/e10",
+                    "p/e10 or cape",
+                ]:
 
                     cape_col = column
                     break
 
             # ------------------------------------------------
-            # Em versões tradicionais da planilha,
-            # CAPE costuma estar próximo das últimas colunas.
+            # Fallback:
+            # procurar coluna com "cape"
+            # ------------------------------------------------
+
+            if cape_col is None:
+
+                for column in (
+                    data.columns
+                ):
+
+                    normalized = (
+                        str(column)
+                        .strip()
+                        .lower()
+                    )
+
+                    if "cape" in normalized:
+
+                        cape_col = column
+                        break
+
+            # ------------------------------------------------
+            # Fallback numérico
             # ------------------------------------------------
 
             if cape_col is None:
 
                 numeric_candidates = []
 
-                for column in data.columns:
-
-                    series = pd.to_numeric(
-                        data[column],
-                        errors="coerce",
-                    )
-
-                    if series.notna().sum() > 100:
-
-                        numeric_candidates.append(
-                            column
-                        )
-
-                # Procura uma série compatível com CAPE
-                # pela faixa econômica plausível.
-
-                for column in reversed(
-                    numeric_candidates
+                for column in (
+                    data.columns
                 ):
 
                     series = pd.to_numeric(
@@ -415,14 +735,38 @@ def download_shiller() -> pd.DataFrame:
                         errors="coerce",
                     )
 
-                    median = series.median()
+                    if (
+                        series.notna().sum()
+                        >
+                        500
+                    ):
 
-                    maximum = series.max()
+                        numeric_candidates.append(
+                            (
+                                column,
+                                series,
+                            )
+                        )
+
+                for (
+                    column,
+                    series,
+                ) in reversed(
+                    numeric_candidates
+                ):
+
+                    median = (
+                        series.median()
+                    )
+
+                    maximum = (
+                        series.max()
+                    )
 
                     if (
                         5 < median < 40
-                        and maximum > 30
-                        and maximum < 100
+                        and
+                        30 < maximum < 100
                     ):
 
                         cape_col = column
@@ -431,15 +775,16 @@ def download_shiller() -> pd.DataFrame:
             if cape_col is None:
 
                 raise RuntimeError(
-                    "Não foi possível identificar "
-                    "a coluna CAPE."
+                    "Coluna CAPE não identificada."
                 )
 
+            _print(
+                f"→ CAPE detectado na coluna: "
+                f"{cape_col}"
+            )
+
             # ------------------------------------------------
-            # Converte datas Shiller
-            #
-            # Exemplo:
-            # 2026.07
+            # Converter datas Shiller YYYY.MM
             # ------------------------------------------------
 
             date_numeric = pd.to_numeric(
@@ -447,67 +792,131 @@ def download_shiller() -> pd.DataFrame:
                 errors="coerce",
             )
 
+            valid_date_mask = (
+                date_numeric.notna()
+                &
+                (date_numeric >= 1800)
+                &
+                (date_numeric <= 2200)
+            )
+
+            date_numeric = (
+                date_numeric.where(
+                    valid_date_mask
+                )
+            )
+
             year = np.floor(
                 date_numeric
             )
 
-            month_decimal = (
-                date_numeric - year
-            )
-
             month = np.round(
-                month_decimal * 100
+                (
+                    date_numeric - year
+                )
+                *
+                100
             )
 
-            month = np.clip(
+            month = pd.Series(
                 month,
-                1,
-                12,
+                index=data.index,
+            )
+
+            month = month.where(
+                month.between(
+                    1,
+                    12
+                )
+            )
+
+            year_series = pd.Series(
+                year,
+                index=data.index,
             )
 
             date_string = (
-                year.astype("Int64").astype(str)
+
+                year_series
+                .astype("Int64")
+                .astype(str)
+
                 + "-"
-                + month.astype("Int64")
+
+                + month
+                .astype("Int64")
                 .astype(str)
                 .str.zfill(2)
+
                 + "-01"
             )
 
             result = pd.DataFrame({
-                "date": pd.to_datetime(
-                    date_string,
-                    errors="coerce",
-                ),
 
-                "cape": pd.to_numeric(
-                    data[cape_col],
-                    errors="coerce",
-                ),
+                "date":
+                    pd.to_datetime(
+                        date_string,
+                        errors="coerce",
+                    ),
+
+                "cape":
+                    pd.to_numeric(
+                        data[cape_col],
+                        errors="coerce",
+                    ),
             })
 
             result = (
                 result
-                .dropna()
+                .dropna(
+                    subset=[
+                        "date",
+                        "cape",
+                    ]
+                )
                 .sort_values("date")
-                .drop_duplicates("date")
+                .drop_duplicates(
+                    subset="date",
+                    keep="last",
+                )
                 .reset_index(drop=True)
             )
 
-            if len(result) < 100:
+            # ------------------------------------------------
+            # Sanidade
+            # ------------------------------------------------
+
+            result = result[
+                result["cape"]
+                .between(
+                    1,
+                    100
+                )
+            ].copy()
+
+            if len(result) < 500:
 
                 raise RuntimeError(
-                    "Base CAPE retornou poucas observações."
+                    "Base CAPE retornou número "
+                    "insuficiente de observações: "
+                    f"{len(result)}"
                 )
 
             _print(
                 f"✅ CAPE: "
-                f"{result['date'].min().date()} → "
+                f"{result['date'].min().date()} "
+                f"→ "
                 f"{result['date'].max().date()}"
             )
 
             _print(
-                f"Observações CAPE: {len(result):,}"
+                f"✅ Observações CAPE: "
+                f"{len(result):,}"
+            )
+
+            _print(
+                f"✅ CAPE mais recente: "
+                f"{result['cape'].iloc[-1]:.2f}"
             )
 
             return result
@@ -517,11 +926,13 @@ def download_shiller() -> pd.DataFrame:
             last_error = error
 
             _print(
-                f"⚠️ Falha nesta fonte: {error}"
+                f"⚠️ Fonte Shiller falhou: "
+                f"{type(error).__name__}: "
+                f"{error}"
             )
 
     raise RuntimeError(
-        "Não foi possível carregar Shiller CAPE. "
+        "Nenhuma fonte Shiller funcionou. "
         f"Último erro: {last_error}"
     )
 
@@ -531,18 +942,36 @@ def download_shiller() -> pd.DataFrame:
 # ============================================================
 
 def merge_fred_series(
-    fred_data: Dict[str, pd.DataFrame]
+    fred_data: Dict[
+        str,
+        pd.DataFrame
+    ]
 ) -> pd.DataFrame:
+
+    _print("")
+    _print(
+        "→ Consolidando séries FRED..."
+    )
 
     merged = None
 
-    for name, df in fred_data.items():
+    for name, df in (
+        fred_data.items()
+    ):
 
-        if df is None or df.empty:
+        if (
+            df is None
+            or df.empty
+            or name not in df.columns
+        ):
+
             continue
 
         temp = df[
-            ["date", name]
+            [
+                "date",
+                name,
+            ]
         ].copy()
 
         if merged is None:
@@ -556,19 +985,34 @@ def merge_fred_series(
                 temp,
                 on="date",
                 how="outer",
+                validate="one_to_one",
             )
 
-    if merged is None:
+    if (
+        merged is None
+        or merged.empty
+    ):
 
         raise RuntimeError(
-            "Nenhuma série FRED disponível."
+            "Nenhuma série FRED disponível "
+            "para consolidação."
         )
 
     merged = (
         merged
         .sort_values("date")
-        .drop_duplicates("date")
+        .drop_duplicates(
+            subset="date",
+            keep="last",
+        )
         .reset_index(drop=True)
+    )
+
+    _print(
+        f"✅ Macro consolidado: "
+        f"{merged['date'].min().date()} "
+        f"→ "
+        f"{merged['date'].max().date()}"
     )
 
     return merged
@@ -584,58 +1028,44 @@ def calculate_market_features(
 
     df = market.copy()
 
-    # --------------------------------------------------------
-    # ATH
-    # --------------------------------------------------------
-
     df["ath"] = (
         df["sp500"]
         .cummax()
     )
 
-    # --------------------------------------------------------
-    # Drawdown
-    # --------------------------------------------------------
-
     df["drawdown"] = (
-        df["sp500"] /
+        df["sp500"]
+        /
         df["ath"]
         - 1
     )
 
-    # --------------------------------------------------------
-    # Distância do ATH
-    # --------------------------------------------------------
-
-    df["distance_from_ath"] = (
-        df["drawdown"]
-    )
-
-    # --------------------------------------------------------
-    # Momentum 6 meses
-    # --------------------------------------------------------
+    df[
+        "distance_from_ath"
+    ] = df["drawdown"]
 
     df["return_6m"] = (
         df["sp500"]
-        .pct_change(6)
+        .pct_change(
+            periods=6,
+            fill_method=None,
+        )
     )
-
-    # --------------------------------------------------------
-    # Momentum 12 meses
-    # --------------------------------------------------------
 
     df["return_12m"] = (
         df["sp500"]
-        .pct_change(12)
+        .pct_change(
+            periods=12,
+            fill_method=None,
+        )
     )
-
-    # --------------------------------------------------------
-    # Momentum 24 meses
-    # --------------------------------------------------------
 
     df["return_24m"] = (
         df["sp500"]
-        .pct_change(24)
+        .pct_change(
+            periods=24,
+            fill_method=None,
+        )
     )
 
     return df
@@ -651,32 +1081,55 @@ def calculate_monetary_features(
 
     result = df.copy()
 
-    if "fed_funds" in result.columns:
+    if (
+        "fed_funds"
+        in result.columns
+    ):
 
-        result["fed_change_6m"] = (
+        result[
+            "fed_change_6m"
+        ] = (
             result["fed_funds"]
             .diff(6)
         )
 
-        result["fed_change_12m"] = (
+        result[
+            "fed_change_12m"
+        ] = (
             result["fed_funds"]
             .diff(12)
         )
 
     if (
-        "treasury_10y" in result.columns
+        "treasury_10y"
+        in result.columns
         and
-        "treasury_2y" in result.columns
+        "treasury_2y"
+        in result.columns
     ):
 
-        result["yield_curve_10y_2y"] = (
-            result["treasury_10y"]
+        result[
+            "yield_curve_10y_2y"
+        ] = (
+
+            result[
+                "treasury_10y"
+            ]
+
             -
-            result["treasury_2y"]
+
+            result[
+                "treasury_2y"
+            ]
         )
 
-        result["yield_curve_change_6m"] = (
-            result["yield_curve_10y_2y"]
+        result[
+            "yield_curve_change_6m"
+        ] = (
+
+            result[
+                "yield_curve_10y_2y"
+            ]
             .diff(6)
         )
 
@@ -693,42 +1146,56 @@ def calculate_inflation_features(
 
     result = df.copy()
 
-    if "cpi" not in result.columns:
+    if (
+        "cpi"
+        not in result.columns
+    ):
+
         return result
 
-    # --------------------------------------------------------
-    # Inflação YoY
-    # --------------------------------------------------------
+    result[
+        "inflation_yoy"
+    ] = (
 
-    result["inflation_yoy"] = (
         result["cpi"]
-        .pct_change(12)
-        * 100
+        .pct_change(
+            periods=12,
+            fill_method=None,
+        )
+        *
+        100
     )
-
-    # --------------------------------------------------------
-    # Inflação acumulada em 6 meses anualizada
-    # --------------------------------------------------------
 
     inflation_6m = (
+
         result["cpi"]
-        .pct_change(6)
+        .pct_change(
+            periods=6,
+            fill_method=None,
+        )
     )
 
-    result["inflation_6m_annualized"] = (
+    result[
+        "inflation_6m_annualized"
+    ] = (
+
         (
-            (1 + inflation_6m) ** 2
+            (1 + inflation_6m)
+            ** 2
             - 1
         )
-        * 100
+
+        *
+        100
     )
 
-    # --------------------------------------------------------
-    # Mudança da inflação YoY em 6 meses
-    # --------------------------------------------------------
+    result[
+        "inflation_change_6m"
+    ] = (
 
-    result["inflation_change_6m"] = (
-        result["inflation_yoy"]
+        result[
+            "inflation_yoy"
+        ]
         .diff(6)
     )
 
@@ -745,28 +1212,39 @@ def calculate_labor_features(
 
     result = df.copy()
 
-    if "unemployment" in result.columns:
+    if (
+        "unemployment"
+        in result.columns
+    ):
 
-        result["unemployment_change_6m"] = (
-            result["unemployment"]
+        result[
+            "unemployment_change_6m"
+        ] = (
+
+            result[
+                "unemployment"
+            ]
             .diff(6)
         )
 
-        result["unemployment_change_12m"] = (
-            result["unemployment"]
+        result[
+            "unemployment_change_12m"
+        ] = (
+
+            result[
+                "unemployment"
+            ]
             .diff(12)
         )
 
-    # --------------------------------------------------------
-    # SAHMREALTIME já vem calculado oficialmente pelo FRED.
-    # Não recalculamos.
-    # --------------------------------------------------------
+    if (
+        "sahm"
+        in result.columns
+    ):
 
-    if "sahm" in result.columns:
-
-        result["sahm_indicator"] = (
-            result["sahm"]
-        )
+        result[
+            "sahm_indicator"
+        ] = result["sahm"]
 
     return result
 
@@ -792,9 +1270,16 @@ def calculate_industrial_features(
         "industrial_production_yoy"
     ] = (
 
-        result["industrial_production"]
-        .pct_change(12)
-        * 100
+        result[
+            "industrial_production"
+        ]
+        .pct_change(
+            periods=12,
+            fill_method=None,
+        )
+
+        *
+        100
     )
 
     return result
@@ -810,25 +1295,49 @@ def calculate_cape_percentile(
 
     result = df.copy()
 
-    if "cape" not in result.columns:
+    if (
+        "cape"
+        not in result.columns
+    ):
+
         return result
 
-    cape = result["cape"]
-
     # --------------------------------------------------------
-    # Percentil EXPANDING.
+    # Percentil expanding.
     #
-    # Isso evita look-ahead:
-    # cada mês só conhece o histórico disponível até então.
+    # Não utiliza informações futuras.
     # --------------------------------------------------------
 
-    result["cape_percentile"] = (
+    def expanding_percentile(
+        values
+    ):
 
-        cape
-        .expanding(min_periods=60)
+        s = pd.Series(
+            values
+        ).dropna()
+
+        if len(s) < 60:
+
+            return np.nan
+
+        current = s.iloc[-1]
+
+        return float(
+            (
+                s <= current
+            ).mean()
+        )
+
+    result[
+        "cape_percentile"
+    ] = (
+
+        result["cape"]
+        .expanding(
+            min_periods=60
+        )
         .apply(
-            lambda x:
-            pd.Series(x).rank(pct=True).iloc[-1],
+            expanding_percentile,
             raw=False,
         )
     )
@@ -837,79 +1346,133 @@ def calculate_cape_percentile(
 
 
 # ============================================================
-# MERGE GERAL
+# MASTER DATASET
 # ============================================================
 
 def build_master_dataset() -> pd.DataFrame:
 
     _print("")
     _print("=" * 80)
-    _print("SP500 CYCLE ATLAS — DATA PIPELINE")
+    _print(
+        "SP500 CYCLE ATLAS — DATA PIPELINE"
+    )
     _print("=" * 80)
 
-    # --------------------------------------------------------
-    # Mercado
-    # --------------------------------------------------------
+    start_time = time.time()
+
+    # ========================================================
+    # 1. MERCADO
+    # ========================================================
+
+    _print("")
+    _print("[1/4] MERCADO")
 
     market = download_sp500()
 
-    market = calculate_market_features(
-        market
+    market = (
+        calculate_market_features(
+            market
+        )
     )
 
-    # --------------------------------------------------------
-    # FRED
-    # --------------------------------------------------------
+    _print(
+        "✅ Features de mercado calculadas."
+    )
 
-    fred_data = download_all_fred()
+    # ========================================================
+    # 2. FRED
+    # ========================================================
+
+    _print("")
+    _print("[2/4] MACRO / FRED")
+
+    fred_data = (
+        download_all_fred()
+    )
 
     macro = merge_fred_series(
         fred_data
     )
 
-    macro = calculate_monetary_features(
-        macro
+    macro = (
+        calculate_monetary_features(
+            macro
+        )
     )
 
-    macro = calculate_inflation_features(
-        macro
+    macro = (
+        calculate_inflation_features(
+            macro
+        )
     )
 
-    macro = calculate_labor_features(
-        macro
+    macro = (
+        calculate_labor_features(
+            macro
+        )
     )
 
-    macro = calculate_industrial_features(
-        macro
+    macro = (
+        calculate_industrial_features(
+            macro
+        )
     )
 
-    # --------------------------------------------------------
-    # CAPE
-    # --------------------------------------------------------
+    _print(
+        "✅ Features macro calculadas."
+    )
+
+    # ========================================================
+    # 3. SHILLER
+    # ========================================================
+
+    _print("")
+    _print("[3/4] VALUATION / SHILLER")
 
     try:
 
-        shiller = download_shiller()
+        shiller = (
+            download_shiller()
+        )
 
     except Exception as error:
 
         _print("")
-        _print("⚠️ CAPE indisponível.")
-        _print(str(error))
-
-        shiller = pd.DataFrame(
-            columns=["date", "cape"]
+        _print(
+            "⚠️ CAPE indisponível nesta execução."
         )
 
-    # --------------------------------------------------------
-    # MERGE
-    # --------------------------------------------------------
+        _print(
+            f"{type(error).__name__}: "
+            f"{error}"
+        )
+
+        _print(
+            "⚠️ O restante do Atlas continuará."
+        )
+
+        shiller = (
+            pd.DataFrame(
+                columns=[
+                    "date",
+                    "cape",
+                ]
+            )
+        )
+
+    # ========================================================
+    # 4. MERGE
+    # ========================================================
+
+    _print("")
+    _print("[4/4] MASTER DATASET")
 
     master = pd.merge(
         market,
         macro,
         on="date",
         how="left",
+        validate="one_to_one",
     )
 
     if not shiller.empty:
@@ -919,6 +1482,7 @@ def build_master_dataset() -> pd.DataFrame:
             shiller,
             on="date",
             how="left",
+            validate="one_to_one",
         )
 
     else:
@@ -928,81 +1492,116 @@ def build_master_dataset() -> pd.DataFrame:
     master = (
         master
         .sort_values("date")
-        .drop_duplicates("date")
+        .drop_duplicates(
+            subset="date",
+            keep="last",
+        )
         .reset_index(drop=True)
     )
 
     # --------------------------------------------------------
-    # IMPORTANTE
-    #
-    # Macro mensal possui publicação defasada.
-    # NÃO fazemos bfill.
-    #
-    # Forward-fill limitado evita usar informação futura.
+    # Forward-fill limitado
     # --------------------------------------------------------
 
     macro_columns = [
 
         "fed_funds",
+
         "treasury_10y",
         "treasury_2y",
 
         "yield_curve_10y_2y",
 
         "cpi",
+
         "inflation_yoy",
+
         "inflation_6m_annualized",
+
         "inflation_change_6m",
 
         "unemployment",
+
         "unemployment_change_6m",
+
         "unemployment_change_12m",
 
         "sahm",
+
         "sahm_indicator",
 
         "industrial_production",
+
         "industrial_production_yoy",
     ]
 
-    for column in macro_columns:
+    for column in (
+        macro_columns
+    ):
 
-        if column in master.columns:
+        if (
+            column
+            in master.columns
+        ):
 
             master[column] = (
                 master[column]
-                .ffill(limit=3)
+                .ffill(
+                    limit=3
+                )
             )
 
-    # CAPE também é mensal.
-    if "cape" in master.columns:
+    # --------------------------------------------------------
+    # CAPE
+    # --------------------------------------------------------
 
-        master["cape"] = (
+    if (
+        "cape"
+        in master.columns
+    ):
+
+        master[
+            "cape"
+        ] = (
+
             master["cape"]
-            .ffill(limit=3)
+            .ffill(
+                limit=3
+            )
         )
 
-    # --------------------------------------------------------
-    # CAPE percentile
-    # --------------------------------------------------------
+    master = (
+        calculate_cape_percentile(
+            master
+        )
+    )
 
-    master = calculate_cape_percentile(
-        master
+    elapsed = (
+        time.time()
+        -
+        start_time
     )
 
     _print("")
     _print("=" * 80)
-    _print("MASTER DATASET")
+    _print("MASTER DATASET CONCLUÍDO")
     _print("=" * 80)
 
     _print(
         f"Período: "
-        f"{master['date'].min().date()} → "
+        f"{master['date'].min().date()} "
+        f"→ "
         f"{master['date'].max().date()}"
     )
 
     _print(
-        f"Meses: {len(master):,}"
+        f"Meses: "
+        f"{len(master):,}"
+    )
+
+    _print(
+        f"Tempo do pipeline: "
+        f"{elapsed:.1f}s"
     )
 
     return master
@@ -1048,37 +1647,87 @@ def freshness_audit(
 
     rows = []
 
-    for column, label in columns.items():
+    market_date = (
+        master["date"]
+        .max()
+    )
 
-        if column not in master.columns:
+    for (
+        column,
+        label,
+    ) in columns.items():
+
+        if (
+            column
+            not in master.columns
+        ):
+
             continue
 
-        valid = master[
-            ["date", column]
-        ].dropna()
+        valid = (
+            master[
+                [
+                    "date",
+                    column,
+                ]
+            ]
+            .dropna()
+        )
 
         if valid.empty:
+
             continue
 
-        last = valid.iloc[-1]
+        last = (
+            valid.iloc[-1]
+        )
+
+        last_date = (
+            pd.Timestamp(
+                last["date"]
+            )
+        )
+
+        lag_months = (
+
+            (
+                market_date.year
+                -
+                last_date.year
+            )
+            *
+            12
+
+            +
+
+            (
+                market_date.month
+                -
+                last_date.month
+            )
+        )
 
         rows.append({
 
-            "series": label,
+            "series":
+                label,
 
             "last_valid_date":
-                last["date"],
+                last_date,
 
             "last_value":
                 last[column],
+
+            "lag_months":
+                lag_months,
 
             "observations":
                 len(valid),
         })
 
-    audit = pd.DataFrame(rows)
-
-    return audit
+    return pd.DataFrame(
+        rows
+    )
 
 
 # ============================================================
@@ -1089,13 +1738,21 @@ def get_latest_state(
     master: pd.DataFrame
 ) -> pd.Series:
 
-    if master.empty:
+    if (
+        master is None
+        or master.empty
+    ):
 
         raise RuntimeError(
             "Master dataset vazio."
         )
 
-    return master.iloc[-1].copy()
+    return (
+        master
+        .sort_values("date")
+        .iloc[-1]
+        .copy()
+    )
 
 
 # ============================================================
@@ -1104,50 +1761,73 @@ def get_latest_state(
 
 if __name__ == "__main__":
 
-    master = build_master_dataset()
+    _print("")
+    _print("=" * 80)
+    _print(
+        "TESTE ISOLADO — market_data.py"
+    )
+    _print("=" * 80)
 
-    audit = freshness_audit(
-        master
+    master = (
+        build_master_dataset()
     )
 
-    print("")
-    print("=" * 80)
-    print("AUDITORIA DE FRESCOR")
-    print("=" * 80)
+    audit = (
+        freshness_audit(
+            master
+        )
+    )
 
-    print(
+    _print("")
+    _print("=" * 80)
+    _print(
+        "AUDITORIA DE FRESCOR"
+    )
+    _print("=" * 80)
+
+    _print(
         audit.to_string(
             index=False
         )
     )
 
-    print("")
-    print("=" * 80)
-    print("ÚLTIMO ESTADO")
-    print("=" * 80)
-
-    latest = get_latest_state(
-        master
+    latest = (
+        get_latest_state(
+            master
+        )
     )
+
+    _print("")
+    _print("=" * 80)
+    _print("ÚLTIMO ESTADO")
+    _print("=" * 80)
 
     important = [
 
         "date",
+
         "sp500",
+
         "drawdown",
+
         "return_12m",
 
         "cape",
+
         "cape_percentile",
 
         "fed_funds",
+
         "fed_change_12m",
+
         "yield_curve_10y_2y",
 
         "inflation_yoy",
+
         "inflation_change_6m",
 
         "unemployment",
+
         "sahm_indicator",
 
         "industrial_production_yoy",
@@ -1157,12 +1837,12 @@ if __name__ == "__main__":
 
         if column in latest.index:
 
-            print(
-                f"{column:30s}: "
+            _print(
+                f"{column:32s}: "
                 f"{latest[column]}"
             )
 
-    print("")
-    print(
+    _print("")
+    _print(
         "✅ market_data.py executado."
     )
