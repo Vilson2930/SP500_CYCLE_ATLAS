@@ -20,8 +20,10 @@
 from __future__ import annotations
 
 import io
+import os
 import time
 import warnings
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict
 
 import numpy as np
@@ -302,162 +304,110 @@ def download_sp500() -> pd.DataFrame:
 
 
 # ============================================================
-# FRED — DOWNLOAD EM BLOCO
+# FRED — API OFICIAL
 # ============================================================
 
-def download_all_fred() -> Dict[str, pd.DataFrame]:
+FRED_API_URL = "https://api.stlouisfed.org/fred/series/observations"
 
-    _print("")
-    _print("=" * 80)
-    _print("BAIXANDO DADOS MACRO — FRED")
-    _print("=" * 80)
 
-    series_ids = list(FRED_SERIES.values())
+def _get_fred_api_key() -> str:
+    """
+    Obtém a chave FRED da variável de ambiente FRED_API_KEY.
+    """
 
-    reverse_map = {
-        series_id: name
-        for name, series_id in FRED_SERIES.items()
+    api_key = os.getenv("FRED_API_KEY", "").strip()
+
+    if not api_key:
+        raise RuntimeError(
+            "FRED_API_KEY não encontrada. "
+            "Crie o secret FRED_API_KEY no GitHub e exponha-o "
+            "na etapa 'Run SP500 Cycle Atlas'."
+        )
+
+    return api_key
+
+
+def download_fred_series(
+    series_id: str,
+    name: str,
+) -> pd.DataFrame:
+    """
+    Baixa uma série pela API oficial do FRED.
+    """
+
+    api_key = _get_fred_api_key()
+
+    params = {
+        "series_id": series_id,
+        "api_key": api_key,
+        "file_type": "json",
+        "observation_start": FRED_START_DATE,
     }
 
-    ids_string = ",".join(series_ids)
+    headers = {
+        "User-Agent": "SP500-Cycle-Atlas/1.0"
+    }
 
-    url = (
-        "https://fred.stlouisfed.org/graph/"
-        "fredgraph.csv"
-        f"?id={ids_string}"
-    )
+    last_error = None
 
-    _print(
-        f"→ Baixando {len(series_ids)} séries "
-        "em UMA única requisição..."
-    )
+    for attempt in range(1, HTTP_RETRIES + 1):
 
-    _print(
-        "→ Séries: "
-        + ", ".join(series_ids)
-    )
+        try:
+            _print(
+                f"→ {name} [{series_id}] | "
+                f"tentativa {attempt}/{HTTP_RETRIES}"
+            )
 
-    try:
+            response = requests.get(
+                FRED_API_URL,
+                params=params,
+                timeout=(CONNECT_TIMEOUT, 30),
+                headers=headers,
+            )
 
-        response = requests.get(
-            url,
-            timeout=(10, 60),
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 "
-                    "(compatible; SP500-Cycle-Atlas/1.0)"
+            response.raise_for_status()
+            payload = response.json()
+            observations = payload.get("observations", [])
+
+            if not observations:
+                raise RuntimeError(
+                    f"FRED não retornou observações para {series_id}."
                 )
-            },
-        )
 
-        response.raise_for_status()
+            df = pd.DataFrame(observations)
 
-    except Exception as error:
+            if "date" not in df.columns or "value" not in df.columns:
+                raise RuntimeError(
+                    f"Resposta FRED inválida para {series_id}."
+                )
 
-        raise RuntimeError(
-            "Falha no download conjunto do FRED: "
-            f"{type(error).__name__}: {error}"
-        ) from error
+            df = df[["date", "value"]].copy()
+            df = df.rename(columns={"value": name})
 
-    _print(
-        f"→ Resposta FRED recebida: "
-        f"{len(response.content) / 1024:.1f} KB"
-    )
-
-    try:
-
-        raw = pd.read_csv(
-            io.StringIO(response.text)
-        )
-
-    except Exception as error:
-
-        raise RuntimeError(
-            "Falha ao interpretar CSV conjunto do FRED: "
-            f"{error}"
-        ) from error
-
-    if raw is None or raw.empty:
-
-        raise RuntimeError(
-            "FRED retornou dataset vazio."
-        )
-
-    raw = raw.rename(
-        columns={
-            raw.columns[0]: "date"
-        }
-    )
-
-    raw["date"] = pd.to_datetime(
-        raw["date"],
-        errors="coerce",
-    )
-
-    raw = raw[
-        raw["date"] >= pd.Timestamp(FRED_START_DATE)
-    ].copy()
-
-    for series_id in series_ids:
-
-        if series_id in raw.columns:
-
-            raw[series_id] = pd.to_numeric(
-                raw[series_id],
+            df["date"] = pd.to_datetime(
+                df["date"],
                 errors="coerce",
             )
 
-    fred_data = {}
-    success = 0
-
-    for series_id in series_ids:
-
-        name = reverse_map[series_id]
-
-        if series_id not in raw.columns:
-
-            _print(
-                f"⚠️ Série ausente: {name} [{series_id}]"
+            df[name] = pd.to_numeric(
+                df[name],
+                errors="coerce",
             )
 
-            fred_data[name] = pd.DataFrame(
-                columns=["date", name]
+            df = (
+                df
+                .dropna(subset=["date"])
+                .sort_values("date")
+                .drop_duplicates(subset="date", keep="last")
+                .reset_index(drop=True)
             )
 
-            continue
+            valid = df.dropna(subset=[name])
 
-        temp = raw[["date", series_id]].copy()
-
-        temp = temp.rename(
-            columns={
-                series_id: name
-            }
-        )
-
-        temp = (
-            temp
-            .dropna(subset=["date"])
-            .sort_values("date")
-            .drop_duplicates(
-                subset="date",
-                keep="last",
-            )
-            .reset_index(drop=True)
-        )
-
-        valid = temp.dropna(
-            subset=[name]
-        )
-
-        if valid.empty:
-
-            _print(
-                f"⚠️ Sem dados válidos: {name} [{series_id}]"
-            )
-
-        else:
-
-            success += 1
+            if valid.empty:
+                raise RuntimeError(
+                    f"Série {series_id} sem valores numéricos válidos."
+                )
 
             _print(
                 f"✅ {name:24s} "
@@ -466,22 +416,125 @@ def download_all_fred() -> Dict[str, pd.DataFrame]:
                 f"| {len(valid):,} obs."
             )
 
-        fred_data[name] = temp
+            return df
+
+        except Exception as error:
+            last_error = error
+
+            _print(
+                f"⚠️ {name} [{series_id}] | "
+                f"{type(error).__name__}: {error}"
+            )
+
+            if attempt < HTTP_RETRIES:
+                time.sleep(1)
+
+    raise RuntimeError(
+        f"Falha ao baixar {name} [{series_id}] pela API FRED. "
+        f"Último erro: {last_error}"
+    )
+
+
+def download_all_fred() -> Dict[str, pd.DataFrame]:
+    """
+    Baixa as séries FRED em paralelo usando a API oficial.
+    """
+
+    _print("")
+    _print("=" * 80)
+    _print("BAIXANDO DADOS MACRO — FRED API OFICIAL")
+    _print("=" * 80)
+
+    _get_fred_api_key()
+
+    items = list(FRED_SERIES.items())
+    fred_data: Dict[str, pd.DataFrame] = {}
+
+    max_workers = min(4, len(items))
+
+    _print(
+        f"→ Baixando {len(items)} séries "
+        f"com até {max_workers} conexões simultâneas..."
+    )
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+
+        future_map = {
+            executor.submit(
+                download_fred_series,
+                series_id,
+                name,
+            ): (name, series_id)
+            for name, series_id in items
+        }
+
+        for future in as_completed(future_map):
+
+            name, series_id = future_map[future]
+
+            try:
+                fred_data[name] = future.result()
+
+            except Exception as error:
+                _print(
+                    f"❌ Falha final em {name} [{series_id}]"
+                )
+                _print(
+                    f"   {type(error).__name__}: {error}"
+                )
+
+                fred_data[name] = pd.DataFrame(
+                    columns=["date", name]
+                )
+
+    fred_data = {
+        name: fred_data.get(
+            name,
+            pd.DataFrame(columns=["date", name]),
+        )
+        for name in FRED_SERIES.keys()
+    }
+
+    success = sum(
+        1
+        for name, df in fred_data.items()
+        if (
+            df is not None
+            and not df.empty
+            and name in df.columns
+            and df[name].notna().any()
+        )
+    )
 
     _print("")
     _print(
         f"✅ FRED concluído: "
-        f"{success}/{len(series_ids)} séries."
+        f"{success}/{len(items)} séries válidas."
     )
 
     if success == 0:
-
         raise RuntimeError(
-            "Nenhuma série FRED válida."
+            "Nenhuma série FRED foi obtida pela API oficial."
+        )
+
+    missing = [
+        name
+        for name, df in fred_data.items()
+        if (
+            df is None
+            or df.empty
+            or name not in df.columns
+            or not df[name].notna().any()
+        )
+    ]
+
+    if missing:
+        raise RuntimeError(
+            "FRED incompleto. Séries ausentes: "
+            + ", ".join(missing)
         )
 
     return fred_data
-
 
 # ============================================================
 # SHILLER — CAPE
