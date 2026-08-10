@@ -3,7 +3,7 @@ S&P 500 HISTORICAL CYCLE ATLAS
 ========================================================================
 
 Data: 2026-08-01
-S&P 500: 7,749.31
+S&P 500: 7,749.59
 
 DIAGNÓSTICO DO CICLO
 ------------------------------------------------------------------------
@@ -16,20 +16,20 @@ Regime operacional: GREEN_EXPANSION
 MERCADO
 ------------------------------------------------------------------------
 Drawdown         : 0.00%
-Momentum 12m     : 19.95%
+Momentum 12m     : 19.96%
 Idade do bull    : 3.92 anos
-Retorno do bull  : 116.12%
+Retorno do bull  : 116.13%
 
 VALUATION
 ------------------------------------------------------------------------
 CAPE             : N/A
-Percentil CAPE   : N/A
-Classificação    : UNKNOWN
+Percentil CAPE   : 92.3%
+Classificação    : VERY_HIGH
 
 MACRO & MONETÁRIO
 ------------------------------------------------------------------------
 Fed Funds        : 3.63%
-Fed Δ12m         : N/A
+Fed Δ12m         : -0.70 p.p.
 Curva 10Y-2Y     : +0.38 p.p.
 Inflação YoY     : 3.46%
 Inflação Δ6m     : +0.81 p.p.
@@ -39,24 +39,24 @@ Produção ind. YoY: +1.14%
 
 CLASSIFICAÇÕES
 ------------------------------------------------------------------------
-Valuation       : UNKNOWN
+Valuation       : VERY_HIGH
 Momentum        : STRONG_POSITIVE
 Drawdown        : NORMAL
 Labor           : STABLE
 Industrial      : EXPANSION
 Inflation       : REACCELERATING
-Monetary        : UNKNOWN
+Monetary        : EASING
 Yield curve     : FLAT_POSITIVE
 
 EVIDENCE SCORECARD
 ------------------------------------------------------------------------
 ✅ TREND | BULL | STRONG
-✅ VALUATION | UNKNOWN | STRONG
+• VALUATION | VERY_HIGH | STRONG
 ✅ MOMENTUM | STRONG_POSITIVE | MODERATE
 ✅ LABOR | STABLE | STRONG
 ✅ INDUSTRIAL | EXPANSION | MODERATE
 ⚠️ INFLATION | REACCELERATING | MODERATE
-✅ MONETARY | UNKNOWN | MODERATE
+✅ MONETARY | EASING | MODERATE
 • YIELD_CURVE | FLAT_POSITIVE | MODERATE
 
 POLÍTICA OPERACIONAL
