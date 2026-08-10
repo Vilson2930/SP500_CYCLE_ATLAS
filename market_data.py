@@ -25,6 +25,7 @@ import re
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from html.parser import HTMLParser
 from typing import Dict
 
 import numpy as np
@@ -703,9 +704,60 @@ def _parse_shiller_xls(content: bytes) -> pd.DataFrame:
     return result
 
 
+class _SimpleTableParser(HTMLParser):
+    """
+    Parser HTML mínimo para extrair células <td>/<th> sem depender
+    de lxml, BeautifulSoup ou html5lib.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.rows = []
+        self._current_row = None
+        self._current_cell = None
+        self._inside_cell = False
+
+    def handle_starttag(self, tag, attrs):
+        tag = tag.lower()
+
+        if tag == "tr":
+            self._current_row = []
+
+        elif tag in {"td", "th"} and self._current_row is not None:
+            self._inside_cell = True
+            self._current_cell = []
+
+    def handle_data(self, data):
+        if self._inside_cell and self._current_cell is not None:
+            self._current_cell.append(data)
+
+    def handle_endtag(self, tag):
+        tag = tag.lower()
+
+        if tag in {"td", "th"} and self._inside_cell:
+            value = " ".join(self._current_cell or [])
+            value = re.sub(r"\\s+", " ", value).strip()
+
+            if self._current_row is not None:
+                self._current_row.append(value)
+
+            self._inside_cell = False
+            self._current_cell = None
+
+        elif tag == "tr":
+            if self._current_row:
+                self.rows.append(self._current_row)
+
+            self._current_row = None
+
+
 def download_current_cape_multpl() -> pd.DataFrame:
     """
-    Atualiza a parte recente do CAPE com a tabela mensal pública do Multpl.
+    Atualiza o CAPE recente usando a tabela mensal pública do Multpl.
+
+    Esta versão não depende da estrutura visual completa da página:
+    ela lê diretamente as células HTML da tabela e procura pares
+    DATA + VALOR.
     """
 
     _print("")
@@ -716,26 +768,39 @@ def download_current_cape_multpl() -> pd.DataFrame:
         read_timeout=20,
     )
 
-    html = response.text
-
-    pattern = re.compile(
-        r'([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4})'
-        r'.{0,500}?'
-        r'([0-9]{1,3}(?:\.[0-9]+)?)',
-        flags=re.S,
-    )
+    parser = _SimpleTableParser()
+    parser.feed(response.text)
 
     rows = []
 
-    for date_text, value_text in pattern.findall(html):
+    for row in parser.rows:
+
+        if len(row) < 2:
+            continue
+
+        date_text = str(row[0]).strip()
+        value_text = str(row[1]).strip()
+
+        # Ignorar cabeçalho.
+        if date_text.lower() == "date":
+            continue
 
         date_value = pd.to_datetime(
             date_text,
             errors="coerce",
         )
 
+        # Mantém somente o primeiro número válido da célula.
+        number_match = re.search(
+            r"-?\\d+(?:\\.\\d+)?",
+            value_text.replace(",", ""),
+        )
+
+        if number_match is None:
+            continue
+
         cape_value = pd.to_numeric(
-            value_text,
+            number_match.group(0),
             errors="coerce",
         )
 
@@ -759,7 +824,8 @@ def download_current_cape_multpl() -> pd.DataFrame:
 
     if not rows:
         raise RuntimeError(
-            "Não foi possível extrair CAPE mensal recente."
+            "Tabela Multpl foi acessada, mas nenhum par "
+            "data/CAPE válido foi extraído."
         )
 
     recent = pd.DataFrame(rows)
@@ -774,16 +840,44 @@ def download_current_cape_multpl() -> pd.DataFrame:
         .reset_index(drop=True)
     )
 
-    if recent["date"].max().year < 2024:
+    latest_date = recent["date"].max()
+    latest_cape = recent.loc[
+        recent["date"].idxmax(),
+        "cape",
+    ]
+
+    if latest_date.year < 2024:
         raise RuntimeError(
             "Tabela recente de CAPE parece desatualizada."
+        )
+
+    # Sanidade adicional: CAPE recente do S&P 500 não deve
+    # aparecer como valor absurdo por erro de parsing.
+    recent_window = recent[
+        recent["date"] >= pd.Timestamp("2020-01-01")
+    ]
+
+    if recent_window.empty:
+        raise RuntimeError(
+            "Tabela CAPE recente não contém dados após 2020."
+        )
+
+    if not recent_window["cape"].between(10, 70).all():
+        raise RuntimeError(
+            "Parser Multpl produziu valores recentes fora "
+            "da faixa de sanidade."
         )
 
     _print(
         f"✅ CAPE recente: "
         f"{recent['date'].min().date()} "
-        f"→ {recent['date'].max().date()} "
+        f"→ {latest_date.date()} "
         f"| {len(recent):,} obs."
+    )
+
+    _print(
+        f"✅ CAPE atual detectado: "
+        f"{latest_cape:.2f}"
     )
 
     return recent
@@ -871,10 +965,18 @@ def download_shiller() -> pd.DataFrame:
 
         recent = download_current_cape_multpl()
 
+        # Usar Shiller como base histórica e Multpl somente
+        # para atualizar o trecho recente.
+        historical_last_date = historical["date"].max()
+
+        recent_extension = recent[
+            recent["date"] >= historical_last_date
+        ].copy()
+
         combined = pd.concat(
             [
                 historical,
-                recent,
+                recent_extension,
             ],
             ignore_index=True,
         )
