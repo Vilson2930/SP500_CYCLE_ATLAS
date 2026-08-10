@@ -14,7 +14,6 @@ permissions:
 
 jobs:
   run-cycle-atlas:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -46,18 +45,34 @@ jobs:
           pip install -r requirements.txt
 
       # ======================================================
-      # 4. EXECUTAR ATLAS
+      # 4. VERIFICAR SECRET FRED
+      # ======================================================
+
+      - name: Check FRED API Key
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+        run: |
+          if [ -z "$FRED_API_KEY" ]; then
+            echo "❌ FRED_API_KEY não foi carregada."
+            exit 1
+          else
+            echo "✅ FRED_API_KEY carregada corretamente."
+          fi
+
+      # ======================================================
+      # 5. EXECUTAR ATLAS
       # ======================================================
 
       - name: Run SP500 Cycle Atlas
-        timeout-minutes: 4
+        timeout-minutes: 10
         env:
           PYTHONUNBUFFERED: "1"
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
         run: |
           python -u main.py
 
       # ======================================================
-      # 5. MOSTRAR ESTADO ATUAL
+      # 6. MOSTRAR ESTADO ATUAL
       # ======================================================
 
       - name: Show current state
@@ -74,7 +89,7 @@ jobs:
           fi
 
       # ======================================================
-      # 6. MOSTRAR RELATÓRIO
+      # 7. MOSTRAR RELATÓRIO
       # ======================================================
 
       - name: Show report
@@ -91,7 +106,7 @@ jobs:
           fi
 
       # ======================================================
-      # 7. SALVAR RESULTADOS NO GITHUB
+      # 8. SALVAR RESULTADOS NO GITHUB
       # ======================================================
 
       - name: Commit updated data
