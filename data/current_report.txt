@@ -3,28 +3,28 @@ S&P 500 HISTORICAL CYCLE ATLAS
 ========================================================================
 
 Data: 2026-08-01
-S&P 500: 7,748.96
+S&P 500: 7,751.69
 
 DIAGNÓSTICO DO CICLO
 ------------------------------------------------------------------------
 Regime de mercado : BULL MARKET
-Fase do ciclo     : EXPANSION
-Risco estrutural  : MODERATE
+Fase do ciclo     : LATE_EXPANSION / VALUATION_EXTREME
+Risco estrutural  : HIGH
 Timing de topo    : NOT_CONFIRMED
-Regime operacional: GREEN_EXPANSION
+Regime operacional: YELLOW_EXPENSIVE_BULL
 
 MERCADO
 ------------------------------------------------------------------------
 Drawdown         : 0.00%
-Momentum 12m     : 19.95%
+Momentum 12m     : 19.99%
 Idade do bull    : 3.92 anos
-Retorno do bull  : 116.11%
+Retorno do bull  : 116.19%
 
 VALUATION
 ------------------------------------------------------------------------
-CAPE             : N/A
-Percentil CAPE   : 92.3%
-Classificação    : VERY_HIGH
+CAPE             : 42.39
+Percentil CAPE   : 99.0%
+Classificação    : EXTREME_TOP_5
 
 MACRO & MONETÁRIO
 ------------------------------------------------------------------------
@@ -39,7 +39,7 @@ Produção ind. YoY: +1.14%
 
 CLASSIFICAÇÕES
 ------------------------------------------------------------------------
-Valuation       : VERY_HIGH
+Valuation       : EXTREME_TOP_5
 Momentum        : STRONG_POSITIVE
 Drawdown        : NORMAL
 Labor           : STABLE
@@ -51,7 +51,7 @@ Yield curve     : FLAT_POSITIVE
 EVIDENCE SCORECARD
 ------------------------------------------------------------------------
 ✅ TREND | BULL | STRONG
-• VALUATION | VERY_HIGH | STRONG
+⚠️ VALUATION | EXTREME_TOP_5 | STRONG
 ✅ MOMENTUM | STRONG_POSITIVE | MODERATE
 ✅ LABOR | STABLE | STRONG
 ✅ INDUSTRIAL | EXPANSION | MODERATE
@@ -62,8 +62,8 @@ EVIDENCE SCORECARD
 POLÍTICA OPERACIONAL
 ------------------------------------------------------------------------
 Posição existente: HOLD
-Novo aporte S&P : 100%
-Nova reserva    : 0%
+Novo aporte S&P : 80%
+Nova reserva    : 20%
 
 IMPORTANTE:
 O Atlas classifica regime.
