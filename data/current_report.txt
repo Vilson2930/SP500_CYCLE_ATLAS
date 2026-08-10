@@ -3,7 +3,7 @@ S&P 500 HISTORICAL CYCLE ATLAS
 ========================================================================
 
 Data: 2026-08-01
-S&P 500: 7,751.69
+S&P 500: 7,754.01
 
 DIAGNÓSTICO DO CICLO
 ------------------------------------------------------------------------
@@ -16,9 +16,9 @@ Regime operacional: YELLOW_EXPENSIVE_BULL
 MERCADO
 ------------------------------------------------------------------------
 Drawdown         : 0.00%
-Momentum 12m     : 19.99%
+Momentum 12m     : 20.03%
 Idade do bull    : 3.92 anos
-Retorno do bull  : 116.19%
+Retorno do bull  : 116.25%
 
 VALUATION
 ------------------------------------------------------------------------
@@ -62,8 +62,8 @@ EVIDENCE SCORECARD
 POLÍTICA OPERACIONAL
 ------------------------------------------------------------------------
 Posição existente: HOLD
-Novo aporte S&P : 80%
-Nova reserva    : 20%
+Novo aporte S&P : 60%
+Nova reserva    : 40%
 
 IMPORTANTE:
 O Atlas classifica regime.
