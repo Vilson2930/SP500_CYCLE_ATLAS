@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -540,6 +541,254 @@ def download_all_fred() -> Dict[str, pd.DataFrame]:
 # SHILLER — CAPE
 # ============================================================
 
+MULTPL_CAPE_MONTHLY_URL = "https://www.multpl.com/shiller-pe/table/by-month"
+
+
+def _parse_shiller_xls(content: bytes) -> pd.DataFrame:
+    """
+    Lê a planilha histórica de Robert Shiller.
+    Corrige o cabeçalho exigindo que a primeira coluna seja 'Date'.
+    """
+
+    excel_data = io.BytesIO(content)
+
+    raw = pd.read_excel(
+        excel_data,
+        sheet_name="Data",
+        header=None,
+        engine="xlrd",
+    )
+
+    _print(
+        f"→ Planilha lida: "
+        f"{raw.shape[0]:,} linhas × "
+        f"{raw.shape[1]:,} colunas"
+    )
+
+    header_row = None
+
+    for i in range(min(25, len(raw))):
+        first_cell = str(raw.iloc[i, 0]).strip().lower()
+
+        if first_cell == "date":
+            header_row = i
+            break
+
+    if header_row is None:
+        raise RuntimeError(
+            "Cabeçalho principal do Shiller não localizado."
+        )
+
+    _print(
+        f"→ Cabeçalho principal detectado na linha {header_row}"
+    )
+
+    header_values = [
+        str(value).strip()
+        if not pd.isna(value)
+        else ""
+        for value in raw.iloc[header_row].tolist()
+    ]
+
+    cape_index = None
+
+    for idx, value in enumerate(header_values):
+        normalized = value.lower()
+
+        if normalized in {
+            "cape",
+            "p/e10",
+            "p/e10 or cape",
+        }:
+            cape_index = idx
+            break
+
+    if cape_index is None and raw.shape[1] > 12:
+        cape_index = 12
+
+    if cape_index is None:
+        raise RuntimeError(
+            "Coluna CAPE não localizada na planilha Shiller."
+        )
+
+    _print(
+        f"→ CAPE detectado na coluna física {cape_index}"
+    )
+
+    data = raw.iloc[
+        header_row + 1:
+    ].copy()
+
+    date_numeric = pd.to_numeric(
+        data.iloc[:, 0],
+        errors="coerce",
+    )
+
+    cape_numeric = pd.to_numeric(
+        data.iloc[:, cape_index],
+        errors="coerce",
+    )
+
+    years = np.floor(date_numeric)
+
+    months = np.rint(
+        (date_numeric - years) * 100
+    )
+
+    months_series = pd.Series(
+        months,
+        index=data.index,
+    )
+
+    valid = (
+        date_numeric.notna()
+        & pd.Series(
+            years,
+            index=data.index,
+        ).between(1800, 2200)
+        & months_series.between(1, 12)
+    )
+
+    years_series = pd.Series(
+        years,
+        index=data.index,
+    ).where(valid)
+
+    months_series = months_series.where(valid)
+
+    date_string = (
+        years_series.astype("Int64").astype(str)
+        + "-"
+        + months_series.astype("Int64").astype(str).str.zfill(2)
+        + "-01"
+    )
+
+    result = pd.DataFrame({
+        "date": pd.to_datetime(
+            date_string,
+            errors="coerce",
+        ),
+        "cape": cape_numeric,
+    })
+
+    result = (
+        result
+        .dropna(
+            subset=[
+                "date",
+                "cape",
+            ]
+        )
+        .loc[
+            lambda x:
+            x["cape"].between(
+                1,
+                100,
+            )
+        ]
+        .sort_values("date")
+        .drop_duplicates(
+            subset="date",
+            keep="last",
+        )
+        .reset_index(drop=True)
+    )
+
+    if len(result) < 1000:
+        raise RuntimeError(
+            "Base CAPE Shiller retornou poucas observações: "
+            f"{len(result)}"
+        )
+
+    return result
+
+
+def download_current_cape_multpl() -> pd.DataFrame:
+    """
+    Atualiza a parte recente do CAPE com a tabela mensal pública do Multpl.
+    """
+
+    _print("")
+    _print("→ Atualizando CAPE recente...")
+
+    response = _http_get(
+        url=MULTPL_CAPE_MONTHLY_URL,
+        read_timeout=20,
+    )
+
+    html = response.text
+
+    pattern = re.compile(
+        r'([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4})'
+        r'.{0,500}?'
+        r'([0-9]{1,3}(?:\.[0-9]+)?)',
+        flags=re.S,
+    )
+
+    rows = []
+
+    for date_text, value_text in pattern.findall(html):
+
+        date_value = pd.to_datetime(
+            date_text,
+            errors="coerce",
+        )
+
+        cape_value = pd.to_numeric(
+            value_text,
+            errors="coerce",
+        )
+
+        if (
+            pd.isna(date_value)
+            or pd.isna(cape_value)
+            or not (1 <= float(cape_value) <= 100)
+        ):
+            continue
+
+        month_date = pd.Timestamp(
+            year=date_value.year,
+            month=date_value.month,
+            day=1,
+        )
+
+        rows.append({
+            "date": month_date,
+            "cape": float(cape_value),
+        })
+
+    if not rows:
+        raise RuntimeError(
+            "Não foi possível extrair CAPE mensal recente."
+        )
+
+    recent = pd.DataFrame(rows)
+
+    recent = (
+        recent
+        .sort_values("date")
+        .drop_duplicates(
+            subset="date",
+            keep="last",
+        )
+        .reset_index(drop=True)
+    )
+
+    if recent["date"].max().year < 2024:
+        raise RuntimeError(
+            "Tabela recente de CAPE parece desatualizada."
+        )
+
+    _print(
+        f"✅ CAPE recente: "
+        f"{recent['date'].min().date()} "
+        f"→ {recent['date'].max().date()} "
+        f"| {len(recent):,} obs."
+    )
+
+    return recent
+
+
 def download_shiller() -> pd.DataFrame:
 
     _print("")
@@ -547,6 +796,7 @@ def download_shiller() -> pd.DataFrame:
     _print("BAIXANDO SHILLER CAPE")
     _print("=" * 80)
 
+    historical = None
     last_error = None
 
     for source_number, url in enumerate(
@@ -567,18 +817,14 @@ def download_shiller() -> pd.DataFrame:
 
             response = _http_get(
                 url=url,
-                read_timeout=(
-                    SHILLER_READ_TIMEOUT
-                ),
+                read_timeout=SHILLER_READ_TIMEOUT,
             )
 
             content = response.content
 
             if len(content) < 10_000:
-
                 raise RuntimeError(
-                    "Arquivo Shiller muito pequeno "
-                    "para ser uma planilha válida."
+                    "Arquivo Shiller muito pequeno."
                 )
 
             _print(
@@ -586,371 +832,25 @@ def download_shiller() -> pd.DataFrame:
                 f"{len(content) / 1024:.1f} KB"
             )
 
-            excel_data = (
-                io.BytesIO(content)
+            historical = _parse_shiller_xls(content)
+
+            _print(
+                f"✅ CAPE histórico: "
+                f"{historical['date'].min().date()} "
+                f"→ {historical['date'].max().date()}"
             )
 
             _print(
-                "→ Lendo planilha XLS..."
-            )
-
-            try:
-
-                raw = pd.read_excel(
-                    excel_data,
-                    sheet_name="Data",
-                    header=None,
-                    engine="xlrd",
-                )
-
-            except Exception as error:
-
-                raise RuntimeError(
-                    "Falha ao abrir XLS Shiller. "
-                    "Verifique se 'xlrd' está "
-                    "no requirements.txt. "
-                    f"Erro: {error}"
-                ) from error
-
-            _print(
-                f"→ Planilha lida: "
-                f"{raw.shape[0]:,} linhas × "
-                f"{raw.shape[1]:,} colunas"
-            )
-
-            # ------------------------------------------------
-            # Localizar linha do cabeçalho
-            # ------------------------------------------------
-
-            header_row = None
-
-            for i in range(
-                min(
-                    20,
-                    len(raw)
-                )
-            ):
-
-                first_values = (
-                    raw.iloc[i]
-                    .astype(str)
-                    .str.strip()
-                    .str.lower()
-                )
-
-                if (
-                    first_values
-                    ==
-                    "date"
-                ).any():
-
-                    header_row = i
-                    break
-
-            if header_row is None:
-
-                raise RuntimeError(
-                    "Linha de cabeçalho 'Date' "
-                    "não localizada na base Shiller."
-                )
-
-            _print(
-                f"→ Cabeçalho detectado "
-                f"na linha {header_row}"
-            )
-
-            headers = (
-                raw.iloc[
-                    header_row
-                ]
-                .tolist()
-            )
-
-            data = (
-                raw.iloc[
-                    header_row + 1:
-                ]
-                .copy()
-            )
-
-            data.columns = headers
-
-            # ------------------------------------------------
-            # Date
-            # ------------------------------------------------
-
-            date_col = None
-
-            for column in (
-                data.columns
-            ):
-
-                if (
-                    str(column)
-                    .strip()
-                    .lower()
-                    ==
-                    "date"
-                ):
-
-                    date_col = column
-                    break
-
-            if date_col is None:
-
-                raise RuntimeError(
-                    "Coluna Date não encontrada."
-                )
-
-            # ------------------------------------------------
-            # CAPE
-            # ------------------------------------------------
-
-            cape_col = None
-
-            for column in (
-                data.columns
-            ):
-
-                normalized = (
-                    str(column)
-                    .strip()
-                    .lower()
-                )
-
-                if normalized in [
-                    "cape",
-                    "p/e10",
-                    "p/e10 or cape",
-                ]:
-
-                    cape_col = column
-                    break
-
-            # ------------------------------------------------
-            # Fallback:
-            # procurar coluna com "cape"
-            # ------------------------------------------------
-
-            if cape_col is None:
-
-                for column in (
-                    data.columns
-                ):
-
-                    normalized = (
-                        str(column)
-                        .strip()
-                        .lower()
-                    )
-
-                    if "cape" in normalized:
-
-                        cape_col = column
-                        break
-
-            # ------------------------------------------------
-            # Fallback numérico
-            # ------------------------------------------------
-
-            if cape_col is None:
-
-                numeric_candidates = []
-
-                for column in (
-                    data.columns
-                ):
-
-                    series = pd.to_numeric(
-                        data[column],
-                        errors="coerce",
-                    )
-
-                    if (
-                        series.notna().sum()
-                        >
-                        500
-                    ):
-
-                        numeric_candidates.append(
-                            (
-                                column,
-                                series,
-                            )
-                        )
-
-                for (
-                    column,
-                    series,
-                ) in reversed(
-                    numeric_candidates
-                ):
-
-                    median = (
-                        series.median()
-                    )
-
-                    maximum = (
-                        series.max()
-                    )
-
-                    if (
-                        5 < median < 40
-                        and
-                        30 < maximum < 100
-                    ):
-
-                        cape_col = column
-                        break
-
-            if cape_col is None:
-
-                raise RuntimeError(
-                    "Coluna CAPE não identificada."
-                )
-
-            _print(
-                f"→ CAPE detectado na coluna: "
-                f"{cape_col}"
-            )
-
-            # ------------------------------------------------
-            # Converter datas Shiller YYYY.MM
-            # ------------------------------------------------
-
-            date_numeric = pd.to_numeric(
-                data[date_col],
-                errors="coerce",
-            )
-
-            valid_date_mask = (
-                date_numeric.notna()
-                &
-                (date_numeric >= 1800)
-                &
-                (date_numeric <= 2200)
-            )
-
-            date_numeric = (
-                date_numeric.where(
-                    valid_date_mask
-                )
-            )
-
-            year = np.floor(
-                date_numeric
-            )
-
-            month = np.round(
-                (
-                    date_numeric - year
-                )
-                *
-                100
-            )
-
-            month = pd.Series(
-                month,
-                index=data.index,
-            )
-
-            month = month.where(
-                month.between(
-                    1,
-                    12
-                )
-            )
-
-            year_series = pd.Series(
-                year,
-                index=data.index,
-            )
-
-            date_string = (
-
-                year_series
-                .astype("Int64")
-                .astype(str)
-
-                + "-"
-
-                + month
-                .astype("Int64")
-                .astype(str)
-                .str.zfill(2)
-
-                + "-01"
-            )
-
-            result = pd.DataFrame({
-
-                "date":
-                    pd.to_datetime(
-                        date_string,
-                        errors="coerce",
-                    ),
-
-                "cape":
-                    pd.to_numeric(
-                        data[cape_col],
-                        errors="coerce",
-                    ),
-            })
-
-            result = (
-                result
-                .dropna(
-                    subset=[
-                        "date",
-                        "cape",
-                    ]
-                )
-                .sort_values("date")
-                .drop_duplicates(
-                    subset="date",
-                    keep="last",
-                )
-                .reset_index(drop=True)
-            )
-
-            # ------------------------------------------------
-            # Sanidade
-            # ------------------------------------------------
-
-            result = result[
-                result["cape"]
-                .between(
-                    1,
-                    100
-                )
-            ].copy()
-
-            if len(result) < 500:
-
-                raise RuntimeError(
-                    "Base CAPE retornou número "
-                    "insuficiente de observações: "
-                    f"{len(result)}"
-                )
-
-            _print(
-                f"✅ CAPE: "
-                f"{result['date'].min().date()} "
-                f"→ "
-                f"{result['date'].max().date()}"
+                f"✅ Observações históricas: "
+                f"{len(historical):,}"
             )
 
             _print(
-                f"✅ Observações CAPE: "
-                f"{len(result):,}"
+                f"✅ CAPE histórico mais recente: "
+                f"{historical['cape'].iloc[-1]:.2f}"
             )
 
-            _print(
-                f"✅ CAPE mais recente: "
-                f"{result['cape'].iloc[-1]:.2f}"
-            )
-
-            return result
+            break
 
         except Exception as error:
 
@@ -958,15 +858,62 @@ def download_shiller() -> pd.DataFrame:
 
             _print(
                 f"⚠️ Fonte Shiller falhou: "
-                f"{type(error).__name__}: "
-                f"{error}"
+                f"{type(error).__name__}: {error}"
             )
 
-    raise RuntimeError(
-        "Nenhuma fonte Shiller funcionou. "
-        f"Último erro: {last_error}"
-    )
+    if historical is None or historical.empty:
+        raise RuntimeError(
+            "Nenhuma fonte Shiller histórica funcionou. "
+            f"Último erro: {last_error}"
+        )
 
+    try:
+
+        recent = download_current_cape_multpl()
+
+        combined = pd.concat(
+            [
+                historical,
+                recent,
+            ],
+            ignore_index=True,
+        )
+
+        combined = (
+            combined
+            .sort_values("date")
+            .drop_duplicates(
+                subset="date",
+                keep="last",
+            )
+            .reset_index(drop=True)
+        )
+
+        _print(
+            f"✅ CAPE combinado: "
+            f"{combined['date'].min().date()} "
+            f"→ {combined['date'].max().date()}"
+        )
+
+        _print(
+            f"✅ CAPE mais recente combinado: "
+            f"{combined['cape'].iloc[-1]:.2f}"
+        )
+
+        return combined
+
+    except Exception as error:
+
+        _print(
+            "⚠️ Atualização recente do CAPE falhou; "
+            "mantendo série histórica de Shiller."
+        )
+
+        _print(
+            f"   {type(error).__name__}: {error}"
+        )
+
+        return historical
 
 # ============================================================
 # MERGE DAS SÉRIES FRED
@@ -1453,6 +1400,40 @@ def build_master_dataset() -> pd.DataFrame:
         "✅ Features macro calculadas."
     )
 
+    # Guardar datas REAIS das fontes antes de qualquer ffill.
+    source_last_dates = {}
+    source_last_values = {}
+
+    source_columns = [
+        "fed_funds",
+        "treasury_2y",
+        "treasury_10y",
+        "cpi",
+        "unemployment",
+        "sahm_indicator",
+        "industrial_production",
+    ]
+
+    for column in source_columns:
+
+        if column not in macro.columns:
+            continue
+
+        valid_source = macro[
+            ["date", column]
+        ].dropna()
+
+        if valid_source.empty:
+            continue
+
+        source_last_dates[column] = pd.Timestamp(
+            valid_source.iloc[-1]["date"]
+        )
+
+        source_last_values[column] = (
+            valid_source.iloc[-1][column]
+        )
+
     # ========================================================
     # 3. SHILLER
     # ========================================================
@@ -1490,6 +1471,22 @@ def build_master_dataset() -> pd.DataFrame:
                 ]
             )
         )
+
+    if not shiller.empty:
+
+        valid_cape_source = shiller[
+            ["date", "cape"]
+        ].dropna()
+
+        if not valid_cape_source.empty:
+
+            source_last_dates["cape"] = pd.Timestamp(
+                valid_cape_source.iloc[-1]["date"]
+            )
+
+            source_last_values["cape"] = (
+                valid_cape_source.iloc[-1]["cape"]
+            )
 
     # ========================================================
     # 4. MERGE
@@ -1537,11 +1534,14 @@ def build_master_dataset() -> pd.DataFrame:
     macro_columns = [
 
         "fed_funds",
+        "fed_change_6m",
+        "fed_change_12m",
 
         "treasury_10y",
         "treasury_2y",
 
         "yield_curve_10y_2y",
+        "yield_curve_change_6m",
 
         "cpi",
 
@@ -1635,6 +1635,9 @@ def build_master_dataset() -> pd.DataFrame:
         f"{elapsed:.1f}s"
     )
 
+    master.attrs["source_last_dates"] = source_last_dates
+    master.attrs["source_last_values"] = source_last_values
+
     return master
 
 
@@ -1647,119 +1650,98 @@ def freshness_audit(
 ) -> pd.DataFrame:
 
     columns = {
-
-        "sp500":
-            "S&P 500",
-
-        "cape":
-            "CAPE",
-
-        "fed_funds":
-            "Fed Funds",
-
-        "treasury_2y":
-            "Treasury 2Y",
-
-        "treasury_10y":
-            "Treasury 10Y",
-
-        "cpi":
-            "CPI",
-
-        "unemployment":
-            "Unemployment",
-
-        "sahm_indicator":
-            "Sahm",
-
-        "industrial_production":
-            "Industrial Production",
+        "sp500": "S&P 500",
+        "cape": "CAPE",
+        "fed_funds": "Fed Funds",
+        "treasury_2y": "Treasury 2Y",
+        "treasury_10y": "Treasury 10Y",
+        "cpi": "CPI",
+        "unemployment": "Unemployment",
+        "sahm_indicator": "Sahm",
+        "industrial_production": "Industrial Production",
     }
 
     rows = []
 
-    market_date = (
-        master["date"]
-        .max()
+    market_date = pd.Timestamp(
+        master["date"].max()
     )
 
-    for (
-        column,
-        label,
-    ) in columns.items():
+    source_last_dates = master.attrs.get(
+        "source_last_dates",
+        {},
+    )
 
-        if (
-            column
-            not in master.columns
-        ):
+    source_last_values = master.attrs.get(
+        "source_last_values",
+        {},
+    )
 
+    for column, label in columns.items():
+
+        if column not in master.columns:
             continue
 
-        valid = (
-            master[
-                [
-                    "date",
-                    column,
-                ]
-            ]
-            .dropna()
-        )
+        if column == "sp500":
 
-        if valid.empty:
+            valid = master[
+                ["date", column]
+            ].dropna()
 
-            continue
+            if valid.empty:
+                continue
 
-        last = (
-            valid.iloc[-1]
-        )
-
-        last_date = (
-            pd.Timestamp(
-                last["date"]
+            last_date = pd.Timestamp(
+                valid.iloc[-1]["date"]
             )
-        )
+
+            last_value = valid.iloc[-1][column]
+            observations = len(valid)
+
+        elif column in source_last_dates:
+
+            last_date = pd.Timestamp(
+                source_last_dates[column]
+            )
+
+            last_value = source_last_values.get(
+                column,
+                np.nan,
+            )
+
+            observations = np.nan
+
+        else:
+
+            valid = master[
+                ["date", column]
+            ].dropna()
+
+            if valid.empty:
+                continue
+
+            last_date = pd.Timestamp(
+                valid.iloc[-1]["date"]
+            )
+
+            last_value = valid.iloc[-1][column]
+            observations = len(valid)
 
         lag_months = (
-
-            (
-                market_date.year
-                -
-                last_date.year
-            )
-            *
-            12
-
+            (market_date.year - last_date.year) * 12
             +
-
-            (
-                market_date.month
-                -
-                last_date.month
-            )
+            (market_date.month - last_date.month)
         )
 
         rows.append({
-
-            "series":
-                label,
-
-            "last_valid_date":
-                last_date,
-
-            "last_value":
-                last[column],
-
-            "lag_months":
-                lag_months,
-
-            "observations":
-                len(valid),
+            "series": label,
+            "last_valid_date": last_date,
+            "last_value": last_value,
+            "lag_months": lag_months,
+            "observations": observations,
         })
 
-    return pd.DataFrame(
-        rows
-    )
-
+    return pd.DataFrame(rows)
 
 # ============================================================
 # ÚLTIMO ESTADO DISPONÍVEL
