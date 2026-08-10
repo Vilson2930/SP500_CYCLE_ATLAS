@@ -50,8 +50,11 @@ jobs:
       # ======================================================
 
       - name: Run SP500 Cycle Atlas
+        timeout-minutes: 4
+        env:
+          PYTHONUNBUFFERED: "1"
         run: |
-          python main.py
+          python -u main.py
 
       # ======================================================
       # 5. MOSTRAR ESTADO ATUAL
@@ -92,6 +95,7 @@ jobs:
       # ======================================================
 
       - name: Commit updated data
+        if: success()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
