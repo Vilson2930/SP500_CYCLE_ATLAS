@@ -25,7 +25,6 @@ import re
 import time
 import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from html.parser import HTMLParser
 from typing import Dict
 
 import numpy as np
@@ -542,6 +541,7 @@ def download_all_fred() -> Dict[str, pd.DataFrame]:
 # SHILLER — CAPE
 # ============================================================
 
+HISTORY_OF_MARKET_CAPE_URL = "https://historyofmarket.com/api/sp500/pe.json"
 MULTPL_CAPE_MONTHLY_URL = "https://www.multpl.com/shiller-pe/table/by-month"
 
 
@@ -704,85 +704,213 @@ def _parse_shiller_xls(content: bytes) -> pd.DataFrame:
     return result
 
 
-class _SimpleTableParser(HTMLParser):
+def _extract_cape_records_from_json(payload) -> pd.DataFrame:
     """
-    Parser HTML mínimo para extrair células <td>/<th> sem depender
-    de lxml, BeautifulSoup ou html5lib.
+    Extrai registros de CAPE de diferentes formatos JSON.
+
+    O endpoint History of Market é tratado de forma defensiva:
+    aceita lista de registros ou dicionários aninhados contendo
+    campos de data + valor/CAPE.
     """
 
-    def __init__(self):
-        super().__init__()
-        self.rows = []
-        self._current_row = None
-        self._current_cell = None
-        self._inside_cell = False
+    rows = []
 
-    def handle_starttag(self, tag, attrs):
-        tag = tag.lower()
+    date_keys = {
+        "date",
+        "period",
+        "datetime",
+        "timestamp",
+        "month",
+    }
 
-        if tag == "tr":
-            self._current_row = []
+    value_keys = {
+        "value",
+        "cape",
+        "pe10",
+        "shiller_cape",
+        "shiller_pe",
+        "ratio",
+    }
 
-        elif tag in {"td", "th"} and self._current_row is not None:
-            self._inside_cell = True
-            self._current_cell = []
+    def walk(obj):
 
-    def handle_data(self, data):
-        if self._inside_cell and self._current_cell is not None:
-            self._current_cell.append(data)
+        if isinstance(obj, dict):
 
-    def handle_endtag(self, tag):
-        tag = tag.lower()
+            normalized = {
+                str(k).strip().lower(): v
+                for k, v in obj.items()
+            }
 
-        if tag in {"td", "th"} and self._inside_cell:
-            value = " ".join(self._current_cell or [])
-            value = re.sub(r"\\s+", " ", value).strip()
+            date_value = None
+            cape_value = None
 
-            if self._current_row is not None:
-                self._current_row.append(value)
+            for key in date_keys:
+                if key in normalized:
+                    date_value = normalized[key]
+                    break
 
-            self._inside_cell = False
-            self._current_cell = None
+            for key in value_keys:
+                if key in normalized:
+                    cape_value = normalized[key]
+                    break
 
-        elif tag == "tr":
-            if self._current_row:
-                self.rows.append(self._current_row)
+            if date_value is not None and cape_value is not None:
 
-            self._current_row = None
+                parsed_date = pd.to_datetime(
+                    date_value,
+                    errors="coerce",
+                )
+
+                parsed_cape = pd.to_numeric(
+                    cape_value,
+                    errors="coerce",
+                )
+
+                if (
+                    not pd.isna(parsed_date)
+                    and not pd.isna(parsed_cape)
+                    and 1 <= float(parsed_cape) <= 100
+                ):
+
+                    rows.append({
+                        "date": pd.Timestamp(
+                            year=parsed_date.year,
+                            month=parsed_date.month,
+                            day=1,
+                        ),
+                        "cape": float(parsed_cape),
+                    })
+
+            for value in obj.values():
+                walk(value)
+
+        elif isinstance(obj, list):
+
+            for item in obj:
+                walk(item)
+
+    walk(payload)
+
+    if not rows:
+        raise RuntimeError(
+            "JSON de CAPE acessado, mas nenhum registro "
+            "data/valor válido foi identificado."
+        )
+
+    result = pd.DataFrame(rows)
+
+    result = (
+        result
+        .sort_values("date")
+        .drop_duplicates(
+            subset="date",
+            keep="last",
+        )
+        .reset_index(drop=True)
+    )
+
+    return result
+
+
+def download_current_cape_history_of_market() -> pd.DataFrame:
+    """
+    Fonte recente principal do CAPE.
+
+    Usa o endpoint JSON público e estável do History of Market.
+    """
+
+    _print("")
+    _print("→ Atualizando CAPE recente via JSON...")
+
+    response = _http_get(
+        url=HISTORY_OF_MARKET_CAPE_URL,
+        read_timeout=20,
+    )
+
+    try:
+        payload = response.json()
+
+    except Exception as error:
+        raise RuntimeError(
+            f"Resposta CAPE não é JSON válido: {error}"
+        ) from error
+
+    recent = _extract_cape_records_from_json(
+        payload
+    )
+
+    latest_date = recent["date"].max()
+
+    latest_cape = recent.loc[
+        recent["date"].idxmax(),
+        "cape",
+    ]
+
+    if latest_date.year < 2025:
+        raise RuntimeError(
+            "Fonte JSON de CAPE está excessivamente desatualizada."
+        )
+
+    if not (10 <= float(latest_cape) <= 70):
+        raise RuntimeError(
+            "CAPE recente fora da faixa de sanidade."
+        )
+
+    _print(
+        f"✅ CAPE JSON: "
+        f"{recent['date'].min().date()} "
+        f"→ {latest_date.date()} "
+        f"| {len(recent):,} obs."
+    )
+
+    _print(
+        f"✅ CAPE recente detectado: "
+        f"{latest_cape:.2f}"
+    )
+
+    return recent
 
 
 def download_current_cape_multpl() -> pd.DataFrame:
     """
-    Atualiza o CAPE recente usando a tabela mensal pública do Multpl.
+    Fallback secundário.
 
-    Esta versão não depende da estrutura visual completa da página:
-    ela lê diretamente as células HTML da tabela e procura pares
-    DATA + VALOR.
+    O Multpl pode entregar HTML sem a tabela para alguns runners,
+    por isso não é mais a fonte recente principal.
     """
 
     _print("")
-    _print("→ Atualizando CAPE recente...")
+    _print("→ Tentando fallback CAPE via Multpl...")
 
     response = _http_get(
         url=MULTPL_CAPE_MONTHLY_URL,
         read_timeout=20,
     )
 
-    parser = _SimpleTableParser()
-    parser.feed(response.text)
+    html = response.text
 
     rows = []
 
-    for row in parser.rows:
+    # Tenta extrair pares de data/valor diretamente do texto HTML.
+    date_pattern = re.compile(
+        r'([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4})'
+    )
 
-        if len(row) < 2:
-            continue
+    for match in date_pattern.finditer(html):
 
-        date_text = str(row[0]).strip()
-        value_text = str(row[1]).strip()
+        date_text = match.group(1)
 
-        # Ignorar cabeçalho.
-        if date_text.lower() == "date":
+        tail = html[
+            match.end():
+            match.end() + 400
+        ]
+
+        value_match = re.search(
+            r'([0-9]{1,3}(?:\.[0-9]+)?)',
+            tail,
+        )
+
+        if value_match is None:
             continue
 
         date_value = pd.to_datetime(
@@ -790,17 +918,8 @@ def download_current_cape_multpl() -> pd.DataFrame:
             errors="coerce",
         )
 
-        # Mantém somente o primeiro número válido da célula.
-        number_match = re.search(
-            r"-?\\d+(?:\\.\\d+)?",
-            value_text.replace(",", ""),
-        )
-
-        if number_match is None:
-            continue
-
         cape_value = pd.to_numeric(
-            number_match.group(0),
+            value_match.group(1),
             errors="coerce",
         )
 
@@ -811,21 +930,18 @@ def download_current_cape_multpl() -> pd.DataFrame:
         ):
             continue
 
-        month_date = pd.Timestamp(
-            year=date_value.year,
-            month=date_value.month,
-            day=1,
-        )
-
         rows.append({
-            "date": month_date,
+            "date": pd.Timestamp(
+                year=date_value.year,
+                month=date_value.month,
+                day=1,
+            ),
             "cape": float(cape_value),
         })
 
     if not rows:
         raise RuntimeError(
-            "Tabela Multpl foi acessada, mas nenhum par "
-            "data/CAPE válido foi extraído."
+            "Multpl acessado, mas nenhum CAPE válido foi extraído."
         )
 
     recent = pd.DataFrame(rows)
@@ -838,46 +954,6 @@ def download_current_cape_multpl() -> pd.DataFrame:
             keep="last",
         )
         .reset_index(drop=True)
-    )
-
-    latest_date = recent["date"].max()
-    latest_cape = recent.loc[
-        recent["date"].idxmax(),
-        "cape",
-    ]
-
-    if latest_date.year < 2024:
-        raise RuntimeError(
-            "Tabela recente de CAPE parece desatualizada."
-        )
-
-    # Sanidade adicional: CAPE recente do S&P 500 não deve
-    # aparecer como valor absurdo por erro de parsing.
-    recent_window = recent[
-        recent["date"] >= pd.Timestamp("2020-01-01")
-    ]
-
-    if recent_window.empty:
-        raise RuntimeError(
-            "Tabela CAPE recente não contém dados após 2020."
-        )
-
-    if not recent_window["cape"].between(10, 70).all():
-        raise RuntimeError(
-            "Parser Multpl produziu valores recentes fora "
-            "da faixa de sanidade."
-        )
-
-    _print(
-        f"✅ CAPE recente: "
-        f"{recent['date'].min().date()} "
-        f"→ {latest_date.date()} "
-        f"| {len(recent):,} obs."
-    )
-
-    _print(
-        f"✅ CAPE atual detectado: "
-        f"{latest_cape:.2f}"
     )
 
     return recent
@@ -961,61 +1037,99 @@ def download_shiller() -> pd.DataFrame:
             f"Último erro: {last_error}"
         )
 
+    recent = None
+    recent_errors = []
+
+    # Fonte principal recente: JSON estável.
     try:
 
-        recent = download_current_cape_multpl()
-
-        # Usar Shiller como base histórica e Multpl somente
-        # para atualizar o trecho recente.
-        historical_last_date = historical["date"].max()
-
-        recent_extension = recent[
-            recent["date"] >= historical_last_date
-        ].copy()
-
-        combined = pd.concat(
-            [
-                historical,
-                recent_extension,
-            ],
-            ignore_index=True,
-        )
-
-        combined = (
-            combined
-            .sort_values("date")
-            .drop_duplicates(
-                subset="date",
-                keep="last",
-            )
-            .reset_index(drop=True)
-        )
-
-        _print(
-            f"✅ CAPE combinado: "
-            f"{combined['date'].min().date()} "
-            f"→ {combined['date'].max().date()}"
-        )
-
-        _print(
-            f"✅ CAPE mais recente combinado: "
-            f"{combined['cape'].iloc[-1]:.2f}"
-        )
-
-        return combined
+        recent = download_current_cape_history_of_market()
 
     except Exception as error:
 
+        recent_errors.append(
+            f"HistoryOfMarket: {type(error).__name__}: {error}"
+        )
+
         _print(
-            "⚠️ Atualização recente do CAPE falhou; "
-            "mantendo série histórica de Shiller."
+            "⚠️ Fonte JSON de CAPE falhou."
         )
 
         _print(
             f"   {type(error).__name__}: {error}"
         )
 
+    # Fallback secundário.
+    if recent is None or recent.empty:
+
+        try:
+
+            recent = download_current_cape_multpl()
+
+        except Exception as error:
+
+            recent_errors.append(
+                f"Multpl: {type(error).__name__}: {error}"
+            )
+
+            _print(
+                "⚠️ Fallback Multpl de CAPE falhou."
+            )
+
+            _print(
+                f"   {type(error).__name__}: {error}"
+            )
+
+    if recent is None or recent.empty:
+
+        _print(
+            "⚠️ Nenhuma fonte recente de CAPE funcionou; "
+            "mantendo apenas Shiller histórico."
+        )
+
+        for message in recent_errors:
+            _print(
+                f"   {message}"
+            )
+
         return historical
+
+    historical_last_date = historical["date"].max()
+
+    recent_extension = recent[
+        recent["date"] >= historical_last_date
+    ].copy()
+
+    combined = pd.concat(
+        [
+            historical,
+            recent_extension,
+        ],
+        ignore_index=True,
+    )
+
+    combined = (
+        combined
+        .sort_values("date")
+        .drop_duplicates(
+            subset="date",
+            keep="last",
+        )
+        .reset_index(drop=True)
+    )
+
+    _print(
+        f"✅ CAPE combinado: "
+        f"{combined['date'].min().date()} "
+        f"→ {combined['date'].max().date()}"
+    )
+
+    _print(
+        f"✅ CAPE mais recente combinado: "
+        f"{combined['cape'].iloc[-1]:.2f}"
+    )
+
+    return combined
 
 # ============================================================
 # MERGE DAS SÉRIES FRED
