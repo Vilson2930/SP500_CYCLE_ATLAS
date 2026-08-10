@@ -1,1 +1,108 @@
+name: SP500 Cycle Atlas
 
+on:
+  # Execução manual pelo GitHub
+  workflow_dispatch:
+
+  # Execução automática
+  schedule:
+    # 12:00 UTC todos os dias
+    - cron: "0 12 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  run-cycle-atlas:
+
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # ======================================================
+      # 1. CHECKOUT
+      # ======================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ======================================================
+      # 2. PYTHON
+      # ======================================================
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      # ======================================================
+      # 3. DEPENDÊNCIAS
+      # ======================================================
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ======================================================
+      # 4. EXECUTAR ATLAS
+      # ======================================================
+
+      - name: Run SP500 Cycle Atlas
+        run: |
+          python main.py
+
+      # ======================================================
+      # 5. MOSTRAR ESTADO ATUAL
+      # ======================================================
+
+      - name: Show current state
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "CURRENT STATE"
+          echo "=========================================="
+
+          if [ -f data/current_state.csv ]; then
+            cat data/current_state.csv
+          else
+            echo "current_state.csv não encontrado."
+          fi
+
+      # ======================================================
+      # 6. MOSTRAR RELATÓRIO
+      # ======================================================
+
+      - name: Show report
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "SP500 CYCLE ATLAS REPORT"
+          echo "=========================================="
+
+          if [ -f data/current_report.txt ]; then
+            cat data/current_report.txt
+          else
+            echo "current_report.txt não encontrado."
+          fi
+
+      # ======================================================
+      # 7. SALVAR RESULTADOS NO GITHUB
+      # ======================================================
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/current_state.csv
+          git add data/cycle_history.csv
+          git add data/current_report.txt
+
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração para salvar."
+          else
+            git commit -m "Update SP500 Cycle Atlas"
+            git push
+          fi
