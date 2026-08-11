@@ -124,12 +124,27 @@ def _fmt_pp(value, decimals=2):
 
 
 def _date_text(value):
+    """
+    Formata a data-base do estado de forma defensiva.
+    """
     if not _valid(value):
         return "N/A"
+
     try:
-        return pd.Timestamp(value).strftime("%d/%m/%Y")
+        parsed = pd.to_datetime(
+            value,
+            errors="coerce",
+        )
+
+        if pd.isna(parsed):
+            return "N/A"
+
+        return pd.Timestamp(parsed).strftime(
+            "%d/%m/%Y"
+        )
+
     except Exception:
-        return str(value)
+        return "N/A"
 
 
 def _escape(value):
@@ -209,7 +224,7 @@ def _regime_interpretation(regime):
     mapping = {
         "GREEN_EXPANSION":
             "O ambiente é predominantemente construtivo. Tendência, atividade e condições "
-            "macro permitem aporte integral no S&P 500.",
+            "macro permitem aporte integral no S&amp;P 500.",
 
         "YELLOW_EXPENSIVE_BULL":
             "O mercado segue em alta e com força, mas o valuation está historicamente elevado. "
@@ -226,7 +241,7 @@ def _regime_interpretation(regime):
 
         "RED_STRUCTURAL_STRESS":
             "O sistema identifica stress estrutural. A posição existente é mantida, "
-            "novos aportes no S&P são reduzidos e tranches da reserva ficam pendentes "
+            "novos aportes no S&amp;P são reduzidos e tranches da reserva ficam pendentes "
             "até a saída do regime RED.",
 
         "BLUE_REASSESS_ACCUMULATION":
@@ -379,6 +394,19 @@ def load_current_state() -> dict:
         )
 
     row = df.iloc[-1].to_dict()
+
+    # Garantir uma data-base utilizável no PDF.
+    if "date" in df.columns:
+
+        parsed_date = pd.to_datetime(
+            df.iloc[-1]["date"],
+            errors="coerce",
+        )
+
+        if not pd.isna(parsed_date):
+            row["date"] = pd.Timestamp(
+                parsed_date
+            )
 
     return row
 
@@ -542,7 +570,7 @@ def _section_title(text, styles):
 def _metric_cards(state, styles):
 
     data = [[
-        Paragraph("S&P 500", styles["CardLabel"]),
+        Paragraph("S&amp;P 500", styles["CardLabel"]),
         Paragraph("DRAWDOWN", styles["CardLabel"]),
         Paragraph("CAPE", styles["CardLabel"]),
         Paragraph("CAPE PERCENTIL", styles["CardLabel"]),
@@ -614,7 +642,7 @@ def _allocation_cards(state, styles):
 
     data = [[
         Paragraph("POSIÇÃO EXISTENTE", styles["CardLabel"]),
-        Paragraph("NOVO APORTE S&P", styles["CardLabel"]),
+        Paragraph("NOVO APORTE S&amp;P", styles["CardLabel"]),
         Paragraph("NOVA RESERVA", styles["CardLabel"]),
     ], [
         Paragraph(position, styles["CardValue"]),
@@ -1367,7 +1395,7 @@ def generate_pdf_report(
             "O SP500 Cycle Atlas classifica o regime de mercado combinando tendência, valuation, "
             "momentum, mercado de trabalho, produção industrial, inflação, política monetária "
             "e curva de juros. A política operacional utiliza o regime para disciplinar novos "
-            "aportes e a formação de reserva, e utiliza drawdowns do S&P 500 para dimensionar "
+            "aportes e a formação de reserva, e utiliza drawdowns do S&amp;P 500 para dimensionar "
             "as tranches potenciais de utilização dessa reserva.",
             styles["BodyAtlas"]
         )
@@ -1389,10 +1417,28 @@ def generate_pdf_report(
         )
     )
 
+    report_generated_at = (
+        datetime.now()
+        .strftime("%d/%m/%Y %H:%M:%S")
+    )
+
+    state_date_text = (
+        _date_text(
+            state.get("date")
+        )
+    )
+
     story.append(
         Paragraph(
-            f"Relatório gerado em {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}. "
-            f"Data-base do estado: {_escape(_date_text(state.get('date')))}.",
+            f"Relatório gerado em {report_generated_at}.",
+            styles["Small"]
+        )
+    )
+
+    story.append(
+        Paragraph(
+            f"<b>Data-base do estado:</b> "
+            f"{_escape(state_date_text)}.",
             styles["Small"]
         )
     )
