@@ -52,6 +52,12 @@ READ_TIMEOUT = 20
 SHILLER_READ_TIMEOUT = 25
 HTTP_RETRIES = 2
 
+# Yahoo Finance é uma fonte pública sujeita a falhas temporárias,
+# rate-limit e respostas vazias em runners do GitHub Actions.
+YAHOO_RETRIES = 3
+YAHOO_RETRY_WAIT_SECONDS = 5
+YAHOO_FALLBACK_RETRIES = 2
+
 
 # ============================================================
 # UTILITÁRIOS
@@ -149,80 +155,162 @@ def download_sp500() -> pd.DataFrame:
     _print("BAIXANDO S&P 500 — YAHOO FINANCE")
     _print("=" * 80)
 
-    _print(
-        f"Ticker: {SP500_TICKER}"
-    )
+    _print(f"Ticker: {SP500_TICKER}")
+    _print(f"Início histórico: {MARKET_START_DATE}")
 
-    _print(
-        f"Início histórico: {MARKET_START_DATE}"
-    )
+    # --------------------------------------------------------
+    # TENTATIVA PRINCIPAL — yf.download
+    # --------------------------------------------------------
 
-    _print(
-        "→ Conectando ao Yahoo Finance..."
-    )
+    data = None
+    last_error = None
 
-    try:
+    for attempt in range(1, YAHOO_RETRIES + 1):
 
-        data = yf.download(
-            SP500_TICKER,
-            start=MARKET_START_DATE,
-            auto_adjust=False,
-            progress=False,
-            threads=False,
-            timeout=20,
+        try:
+
+            _print(
+                f"→ Yahoo Finance | tentativa "
+                f"{attempt}/{YAHOO_RETRIES}"
+            )
+
+            candidate = yf.download(
+                SP500_TICKER,
+                start=MARKET_START_DATE,
+                auto_adjust=False,
+                progress=False,
+                threads=False,
+                timeout=20,
+            )
+
+            if candidate is None or candidate.empty:
+                raise RuntimeError(
+                    "Yahoo Finance retornou dataset vazio."
+                )
+
+            data = candidate
+
+            _print(
+                "✅ Resposta válida recebida via yf.download."
+            )
+
+            break
+
+        except Exception as error:
+
+            last_error = error
+
+            _print(
+                f"⚠️ Yahoo tentativa {attempt}/{YAHOO_RETRIES} | "
+                f"{type(error).__name__}: {error}"
+            )
+
+            if attempt < YAHOO_RETRIES:
+
+                _print(
+                    f"→ Aguardando "
+                    f"{YAHOO_RETRY_WAIT_SECONDS}s antes de tentar novamente..."
+                )
+
+                time.sleep(
+                    YAHOO_RETRY_WAIT_SECONDS
+                )
+
+    # --------------------------------------------------------
+    # FALLBACK — Ticker.history
+    # --------------------------------------------------------
+
+    if data is None or data.empty:
+
+        _print("")
+        _print(
+            "⚠️ yf.download não retornou dados válidos."
+        )
+        _print(
+            "→ Ativando fallback Yahoo via Ticker.history..."
         )
 
-    except Exception as error:
+        for attempt in range(1, YAHOO_FALLBACK_RETRIES + 1):
+
+            try:
+
+                _print(
+                    f"→ Yahoo fallback | tentativa "
+                    f"{attempt}/{YAHOO_FALLBACK_RETRIES}"
+                )
+
+                ticker = yf.Ticker(
+                    SP500_TICKER
+                )
+
+                candidate = ticker.history(
+                    start=MARKET_START_DATE,
+                    auto_adjust=False,
+                    actions=False,
+                )
+
+                if candidate is None or candidate.empty:
+                    raise RuntimeError(
+                        "Ticker.history retornou dataset vazio."
+                    )
+
+                data = candidate
+
+                _print(
+                    "✅ Resposta válida recebida via Ticker.history."
+                )
+
+                break
+
+            except Exception as error:
+
+                last_error = error
+
+                _print(
+                    f"⚠️ Yahoo fallback "
+                    f"{attempt}/{YAHOO_FALLBACK_RETRIES} | "
+                    f"{type(error).__name__}: {error}"
+                )
+
+                if attempt < YAHOO_FALLBACK_RETRIES:
+
+                    _print(
+                        f"→ Aguardando "
+                        f"{YAHOO_RETRY_WAIT_SECONDS}s antes do novo fallback..."
+                    )
+
+                    time.sleep(
+                        YAHOO_RETRY_WAIT_SECONDS
+                    )
+
+    # --------------------------------------------------------
+    # FALHA FINAL
+    # --------------------------------------------------------
+
+    if data is None or data.empty:
 
         raise RuntimeError(
-            "Falha ao consultar Yahoo Finance: "
-            f"{type(error).__name__}: {error}"
-        ) from error
-
-    _print(
-        "→ Resposta do Yahoo recebida."
-    )
-
-    if (
-        data is None
-        or data.empty
-    ):
-
-        raise RuntimeError(
-            "Yahoo Finance retornou dataset vazio."
+            "Não foi possível obter o histórico do S&P 500 "
+            "após múltiplas tentativas no Yahoo Finance. "
+            f"Último erro: {last_error}"
         )
 
     # --------------------------------------------------------
     # Corrigir MultiIndex do yfinance
     # --------------------------------------------------------
 
-    if isinstance(
-        data.columns,
-        pd.MultiIndex,
-    ):
+    if isinstance(data.columns, pd.MultiIndex):
 
         try:
-
-            close = (
-                data["Close"][
-                    SP500_TICKER
-                ]
-            )
-
+            close = data["Close"][SP500_TICKER]
         except Exception:
-
-            close = (
-                data["Close"]
-                .iloc[:, 0]
-            )
+            close = data["Close"].iloc[:, 0]
 
     else:
 
         if "Close" not in data.columns:
-
             raise RuntimeError(
-                "Coluna Close não encontrada "
-                "nos dados do Yahoo."
+                "Coluna Close não encontrada nos dados do Yahoo."
             )
 
         close = data["Close"]
@@ -236,39 +324,46 @@ def download_sp500() -> pd.DataFrame:
     ).reshape(-1)
 
     df = pd.DataFrame({
-
-        "date":
-            pd.to_datetime(
-                close.index
-            ),
-
-        "sp500":
-            pd.to_numeric(
-                close_values,
-                errors="coerce",
-            ),
+        "date": pd.to_datetime(close.index),
+        "sp500": pd.to_numeric(
+            close_values,
+            errors="coerce",
+        ),
     })
+
+    # Ticker.history pode trazer timezone; o Atlas trabalha sem timezone.
+    if getattr(df["date"].dt, "tz", None) is not None:
+        df["date"] = df["date"].dt.tz_localize(None)
 
     df = (
         df
-        .dropna(
-            subset=[
-                "date",
-                "sp500",
-            ]
-        )
+        .dropna(subset=["date", "sp500"])
         .sort_values("date")
-        .drop_duplicates(
-            subset="date",
-            keep="last",
-        )
+        .drop_duplicates(subset="date", keep="last")
         .reset_index(drop=True)
     )
 
     if df.empty:
-
         raise RuntimeError(
             "S&P 500 ficou vazio após limpeza."
+        )
+
+    # --------------------------------------------------------
+    # Validação mínima de sanidade
+    # --------------------------------------------------------
+
+    if len(df) < 1000:
+        raise RuntimeError(
+            "Histórico do S&P 500 retornou poucas observações "
+            f"({len(df):,})."
+        )
+
+    if (
+        not np.isfinite(df["sp500"].iloc[-1])
+        or df["sp500"].iloc[-1] <= 0
+    ):
+        raise RuntimeError(
+            "Último fechamento do S&P 500 é inválido."
         )
 
     # --------------------------------------------------------
@@ -292,8 +387,7 @@ def download_sp500() -> pd.DataFrame:
     )
 
     _print(
-        f"✅ Observações mensais: "
-        f"{len(df):,}"
+        f"✅ Observações mensais: {len(df):,}"
     )
 
     _print(
