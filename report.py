@@ -614,7 +614,21 @@ def state_to_dataframe(
     current_state: dict,
 ) -> pd.DataFrame:
 
+    """
+    Converte o estado atual do engine em uma linha persistível.
+
+    IMPORTANTE:
+    - HISTORY_COLUMNS continua governando o cycle_history.csv.
+    - current_state.csv recebe, além das colunas históricas,
+      todos os campos necessários para TXT, HTML e PDF.
+    - Nenhuma regra de ciclo é recalculada aqui.
+    """
+
     row = {}
+
+    # --------------------------------------------------------
+    # 1. COLUNAS HISTÓRICAS
+    # --------------------------------------------------------
 
     for column in HISTORY_COLUMNS:
 
@@ -626,45 +640,182 @@ def state_to_dataframe(
         )
 
     # --------------------------------------------------------
-    # Mapeamentos necessários
+    # 2. MAPEAMENTOS HISTÓRICOS / LEGADOS
     # --------------------------------------------------------
 
     row["momentum_12m"] = (
         current_state.get(
             "return_12m",
-            np.nan
+            current_state.get(
+                "momentum_12m",
+                np.nan
+            )
         )
     )
 
     row["yield_curve"] = (
         current_state.get(
             "yield_curve_10y_2y",
-            np.nan
+            current_state.get(
+                "yield_curve",
+                np.nan
+            )
         )
     )
 
     row["inflation"] = (
         current_state.get(
             "inflation_yoy",
-            np.nan
+            current_state.get(
+                "inflation",
+                np.nan
+            )
         )
     )
 
-    row[
-        "industrial_production"
-    ] = (
+    row["industrial_production"] = (
         current_state.get(
             "industrial_production_yoy",
-            np.nan
+            current_state.get(
+                "industrial_production",
+                np.nan
+            )
         )
     )
 
     row["sahm"] = (
         current_state.get(
             "sahm_indicator",
+            current_state.get(
+                "sahm",
+                np.nan
+            )
+        )
+    )
+
+    # --------------------------------------------------------
+    # 3. COMPATIBILIDADE COM NOMES ANTIGOS DO CSV
+    # --------------------------------------------------------
+    #
+    # Alguns HISTORY_COLUMNS usam sufixo "_pct" ou nomes
+    # diferentes dos campos operacionais atuais do engine.
+    # Gravamos ambos para manter compatibilidade.
+    # --------------------------------------------------------
+
+    row["new_contribution_equity_pct"] = (
+        current_state.get(
+            "new_contribution_equity_pct",
+            current_state.get(
+                "new_contribution_equity",
+                np.nan
+            )
+        )
+    )
+
+    row["new_contribution_reserve_pct"] = (
+        current_state.get(
+            "new_contribution_reserve_pct",
+            current_state.get(
+                "new_contribution_reserve",
+                np.nan
+            )
+        )
+    )
+
+    row["reserve_deployment_stage"] = (
+        current_state.get(
+            "reserve_deployment_stage",
+            current_state.get(
+                "reserve_stage",
+                0
+            )
+        )
+    )
+
+    row["reserve_pending_stages"] = (
+        current_state.get(
+            "reserve_pending_stages",
             np.nan
         )
     )
+
+    # --------------------------------------------------------
+    # 4. CAMPOS COMPLETOS DO ESTADO ATUAL
+    # --------------------------------------------------------
+    #
+    # Estes campos são usados pelo PDF e pelas demais camadas
+    # de apresentação. Eles são persistidos sem recalcular nada.
+    # --------------------------------------------------------
+
+    state_fields = [
+
+        # Mercado / valuation
+        "sp500",
+        "drawdown",
+        "return_12m",
+        "cape",
+        "cape_percentile",
+        "bull_age_years",
+        "bull_return",
+
+        # Macro — nomes originais do engine
+        "fed_funds",
+        "fed_change_12m",
+        "yield_curve_10y_2y",
+        "inflation_yoy",
+        "inflation_change_6m",
+        "unemployment",
+        "sahm_indicator",
+        "industrial_production_yoy",
+
+        # Diagnóstico principal
+        "market_regime",
+        "cycle_phase",
+        "structural_risk",
+        "top_timing",
+        "operational_regime",
+
+        # Classificações
+        "valuation_regime",
+        "momentum_regime",
+        "drawdown_regime",
+        "labor_regime",
+        "industrial_regime",
+        "inflation_regime",
+        "monetary_regime",
+        "curve_regime",
+
+        # Política de novos aportes
+        "existing_position",
+        "new_contribution_equity",
+        "new_contribution_reserve",
+
+        # Política de utilização da reserva
+        "reserve_stage",
+        "reserve_stage_fraction",
+        "reserve_cumulative_fraction",
+        "reserve_deployment_status",
+        "reserve_pending",
+        "reserve_blocked_by_regime",
+    ]
+
+    for field in state_fields:
+
+        if field in current_state:
+
+            row[field] = (
+                current_state.get(
+                    field
+                )
+            )
+
+        elif field not in row:
+
+            row[field] = np.nan
+
+    # --------------------------------------------------------
+    # 5. DATA
+    # --------------------------------------------------------
 
     row["date"] = pd.to_datetime(
         current_state.get(
