@@ -27,7 +27,7 @@ from pathlib import Path
 
 PROJECT_NAME = "SP500_CYCLE_ATLAS"
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 
 # ============================================================
@@ -41,6 +41,8 @@ DATA_DIR = BASE_DIR / "data"
 CURRENT_STATE_FILE = DATA_DIR / "current_state.csv"
 
 CYCLE_HISTORY_FILE = DATA_DIR / "cycle_history.csv"
+
+RESERVE_STATE_FILE = DATA_DIR / "reserve_state.json"
 
 
 # ============================================================
@@ -363,6 +365,7 @@ CONTRIBUTION_POLICY = {
     REGIME_GREEN: {
         "equity": 1.00,
         "reserve": 0.00,
+        "existing_position": "HOLD",
     },
 
     # --------------------------------------------------------
@@ -376,6 +379,7 @@ CONTRIBUTION_POLICY = {
     REGIME_YELLOW: {
         "equity": 0.60,
         "reserve": 0.40,
+        "existing_position": "HOLD",
     },
 
     # --------------------------------------------------------
@@ -386,6 +390,7 @@ CONTRIBUTION_POLICY = {
     REGIME_ORANGE: {
         "equity": 0.30,
         "reserve": 0.70,
+        "existing_position": "HOLD",
     },
 
     # --------------------------------------------------------
@@ -399,6 +404,7 @@ CONTRIBUTION_POLICY = {
     REGIME_RED: {
         "equity": 0.20,
         "reserve": 0.80,
+        "existing_position": "HOLD",
     },
 
     # --------------------------------------------------------
@@ -412,6 +418,7 @@ CONTRIBUTION_POLICY = {
     REGIME_BLUE: {
         "equity": 1.00,
         "reserve": 0.00,
+        "existing_position": "HOLD_ACCUMULATE",
     },
 
     # --------------------------------------------------------
@@ -422,24 +429,103 @@ CONTRIBUTION_POLICY = {
     REGIME_NEUTRAL: {
         "equity": 0.50,
         "reserve": 0.50,
+        "existing_position": "HOLD",
     },
 }
 
 
 # ============================================================
-# DEPLOY DA RESERVA
+# DEPLOY DA RESERVA — ESTUDO FINAL 1977–2026
+# ============================================================
+#
+# Regra validada no estudo de utilização da reserva:
+#
+# -15% -> 40% da reserva-base do episódio
+# -20% -> +30%
+# -30% -> +20%
+# -35% -> +10%
+#
+# O drawdown cria o gatilho.
+# O regime decide se a tranche pode ser executada.
+#
+# Se o regime atual for RED_STRUCTURAL_STRESS, a tranche
+# fica PENDING e é liberada quando o Atlas deixar RED.
+#
+# A reserva-base do episódio deve ser congelada no primeiro
+# estágio acionado para evitar recalcular percentuais sobre
+# um saldo que muda ao longo da queda.
 # ============================================================
 
 RESERVE_DEPLOYMENT = {
 
-    -0.10: 0.20,
-
-    -0.15: 0.30,
+    -0.15: 0.40,
 
     -0.20: 0.30,
 
-    -0.25: 0.20,
+    -0.30: 0.20,
+
+    -0.35: 0.10,
 }
+
+# Ordem explícita dos estágios para o engine.
+RESERVE_DEPLOYMENT_STAGES = (
+
+    {
+        "stage": 1,
+        "drawdown_threshold": -0.15,
+        "reserve_fraction": 0.40,
+    },
+
+    {
+        "stage": 2,
+        "drawdown_threshold": -0.20,
+        "reserve_fraction": 0.30,
+    },
+
+    {
+        "stage": 3,
+        "drawdown_threshold": -0.30,
+        "reserve_fraction": 0.20,
+    },
+
+    {
+        "stage": 4,
+        "drawdown_threshold": -0.35,
+        "reserve_fraction": 0.10,
+    },
+)
+
+# Regra vencedora da comparação:
+# WAIT_FOR_NON_RED.
+RESERVE_DEPLOYMENT_METHOD = (
+    "DRAWDOWN_TRIGGER_PLUS_REGIME_CONFIRMATION"
+)
+
+# Enquanto RED, estágio acionado não é perdido:
+# ele fica pendente.
+RESERVE_BLOCKED_REGIME = REGIME_RED
+
+RESERVE_PENDING_IN_RED = True
+
+# Ao sair de RED, as tranches pendentes podem ser liberadas.
+RESERVE_RELEASE_REGIMES = (
+    REGIME_BLUE,
+    REGIME_ORANGE,
+    REGIME_NEUTRAL,
+    REGIME_GREEN,
+    REGIME_YELLOW,
+)
+
+# Encerramento de um episódio de stress.
+# Quando o drawdown volta para melhor que -10%, o episódio
+# é resetado e os quatro estágios são rearmados.
+RESERVE_EPISODE_RESET_DRAWDOWN = -0.10
+
+# Política estrutural do estudo.
+RESERVE_SELL_EXISTING_POSITION = False
+RESERVE_CAPE_IS_SELL_SIGNAL = False
+RESERVE_PREDICT_TOP = False
+RESERVE_PREDICT_BOTTOM = False
 
 
 # ============================================================
@@ -498,6 +584,17 @@ HISTORY_COLUMNS = [
     "top_timing",
 
     "operational_regime",
+
+    # Estado operacional da reserva
+    "new_contribution_equity_pct",
+
+    "new_contribution_reserve_pct",
+
+    "reserve_deployment_stage",
+
+    "reserve_deployment_status",
+
+    "reserve_pending_stages",
 ]
 
 
