@@ -6,9 +6,9 @@
 # Fluxo principal:
 #
 # market_data.py
-#      ↓
+# ↓
 # cycle_engine.py
-#      ↓
+# ↓
 # report.py
 #
 # ============================================================
@@ -63,7 +63,6 @@ def main():
     master = build_master_dataset()
 
     if master is None or master.empty:
-
         raise RuntimeError(
             "Master dataset vazio."
         )
@@ -109,7 +108,6 @@ def main():
     )
 
     if classified is None or classified.empty:
-
         raise RuntimeError(
             "Cycle engine retornou dataset vazio."
         )
@@ -131,6 +129,7 @@ def main():
 
         "date",
         "sp500",
+        "drawdown",
 
         "market_regime",
         "cycle_phase",
@@ -150,6 +149,18 @@ def main():
         "monetary_regime",
         "curve_regime",
 
+        # Nova política de aporte
+        "existing_position",
+        "new_contribution_equity",
+        "new_contribution_reserve",
+
+        # Novo estudo da reserva
+        "reserve_stage",
+        "reserve_stage_fraction",
+        "reserve_cumulative_fraction",
+        "reserve_deployment_status",
+        "reserve_pending",
+        "reserve_blocked_by_regime",
     ]
 
     for field in important_fields:
@@ -157,7 +168,7 @@ def main():
         if field in current_state:
 
             print(
-                f"{field:28s}: "
+                f"{field:32s}: "
                 f"{current_state[field]}"
             )
 
@@ -182,6 +193,12 @@ def main():
             scorecard.to_string(
                 index=False
             )
+        )
+
+    else:
+
+        print(
+            "⚠️ Evidence scorecard indisponível."
         )
 
     # ========================================================
@@ -235,7 +252,130 @@ def main():
             )
 
     # ========================================================
-    # 8. ENCERRAMENTO
+    # 8. PAINEL OPERACIONAL DA RESERVA
+    # ========================================================
+
+    print("")
+    print(REPORT_SEPARATOR)
+    print("PAINEL OPERACIONAL DA RESERVA")
+    print(REPORT_SEPARATOR)
+
+    contribution_equity = (
+        current_state.get(
+            "new_contribution_equity"
+        )
+    )
+
+    contribution_reserve = (
+        current_state.get(
+            "new_contribution_reserve"
+        )
+    )
+
+    reserve_stage = (
+        current_state.get(
+            "reserve_stage",
+            0
+        )
+    )
+
+    reserve_stage_fraction = (
+        current_state.get(
+            "reserve_stage_fraction",
+            0.0
+        )
+    )
+
+    reserve_cumulative_fraction = (
+        current_state.get(
+            "reserve_cumulative_fraction",
+            0.0
+        )
+    )
+
+    reserve_status = (
+        current_state.get(
+            "reserve_deployment_status",
+            "NOT_ACTIVE"
+        )
+    )
+
+    reserve_pending = (
+        current_state.get(
+            "reserve_pending",
+            False
+        )
+    )
+
+    print(
+        f"Regime operacional        : "
+        f"{current_state.get('operational_regime')}"
+    )
+
+    print(
+        f"Posição existente         : "
+        f"{current_state.get('existing_position')}"
+    )
+
+    if contribution_equity is not None:
+
+        print(
+            f"Novo aporte S&P           : "
+            f"{float(contribution_equity) * 100:.0f}%"
+        )
+
+    if contribution_reserve is not None:
+
+        print(
+            f"Nova reserva              : "
+            f"{float(contribution_reserve) * 100:.0f}%"
+        )
+
+    print(
+        f"Estágio de deployment     : "
+        f"{reserve_stage}"
+    )
+
+    if reserve_stage and reserve_stage_fraction is not None:
+
+        print(
+            f"Tranche do estágio        : "
+            f"{float(reserve_stage_fraction) * 100:.0f}%"
+        )
+
+        print(
+            f"Tranche acumulada         : "
+            f"{float(reserve_cumulative_fraction) * 100:.0f}%"
+        )
+
+    print(
+        f"Status da reserva         : "
+        f"{reserve_status}"
+    )
+
+    if reserve_pending:
+
+        print(
+            "Ação operacional          : "
+            "manter tranche(s) pendente(s) até sair de RED."
+        )
+
+    elif reserve_status == "DEPLOYMENT_ALLOWED":
+
+        print(
+            "Ação operacional          : "
+            "deployment permitido conforme política 40/30/20/10."
+        )
+
+    else:
+
+        print(
+            "Ação operacional          : "
+            "continuar formando reserva conforme o regime."
+        )
+
+    # ========================================================
+    # 9. ENCERRAMENTO
     # ========================================================
 
     print("")
@@ -261,6 +401,11 @@ def main():
     print(
         f"Timing de topo: "
         f"{current_state.get('top_timing')}"
+    )
+
+    print(
+        f"Status da reserva: "
+        f"{current_state.get('reserve_deployment_status', 'NOT_ACTIVE')}"
     )
 
     print("")
