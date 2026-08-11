@@ -272,6 +272,68 @@ def _status_color(reading):
     )
 
 
+def _display_value(value):
+
+    mapping = {
+        "HOLD": "MANTER POSIÇÃO",
+        "HOLD_ACCUMULATE": "MANTER + ACUMULAR",
+
+        "NOT_ACTIVE": "INATIVA — CONTINUAR ACUMULANDO",
+        "PENDING_REGIME_CONFIRMATION": "PENDENTE — AGUARDAR SAÍDA DO RED",
+        "DEPLOYMENT_ALLOWED": "LIBERADA PARA UTILIZAÇÃO",
+
+        "YELLOW_EXPENSIVE_BULL": "AMARELO — ALTA COM VALUATION ELEVADO",
+        "GREEN_EXPANSION": "VERDE — EXPANSÃO",
+        "NEUTRAL_UNCERTAIN": "NEUTRO — INCERTEZA",
+        "ORANGE_DETERIORATION": "LARANJA — DETERIORAÇÃO",
+        "RED_STRUCTURAL_STRESS": "VERMELHO — STRESS ESTRUTURAL",
+        "BLUE_REASSESS_ACCUMULATION": "AZUL — REAVALIAÇÃO / ACUMULAÇÃO",
+
+        "EXTREME_TOP_1": "EXTREMO — TOP 1%",
+        "EXTREME_TOP_5": "EXTREMO — TOP 5%",
+        "VERY_HIGH": "MUITO ELEVADO",
+        "HIGH": "ELEVADO",
+        "NORMAL": "NORMAL",
+
+        "STRONG_POSITIVE": "FORTEMENTE POSITIVO",
+        "POSITIVE": "POSITIVO",
+        "NEGATIVE": "NEGATIVO",
+
+        "STABLE": "ESTÁVEL",
+        "DETERIORATING": "DETERIORANDO",
+        "DETERIORATION_SEVERE": "DETERIORAÇÃO SEVERA",
+
+        "EXPANSION": "EXPANSÃO",
+        "CONTRACTION": "CONTRAÇÃO",
+        "CONTRACTION_STRONG": "CONTRAÇÃO FORTE",
+
+        "REACCELERATING": "REACELERANDO",
+        "FALLING": "DESACELERANDO",
+
+        "EASING": "FLEXIBILIZAÇÃO",
+        "TIGHTENING": "APERTO",
+
+        "FLAT_POSITIVE": "POSITIVA, MAS ACHATADA",
+        "NORMAL_POSITIVE": "POSITIVA NORMAL",
+        "INVERTED": "INVERTIDA",
+
+        "LATE_EXPANSION / VALUATION_EXTREME":
+            "EXPANSÃO TARDIA / VALUATION EXTREMO",
+
+        "HIGH": "ALTO",
+        "MODERATE": "MODERADO",
+        "LOW": "BAIXO",
+
+        "NOT_CONFIRMED": "NÃO CONFIRMADO",
+        "CONFIRMED": "CONFIRMADO",
+    }
+
+    return mapping.get(
+        str(value),
+        str(value)
+    )
+
+
 def _build_indicator_rows_html(current_state):
 
     import html
@@ -315,7 +377,7 @@ def _build_indicator_rows_html(current_state):
             f"""
             <tr>
                 <td style="padding:10px;border-bottom:1px solid #e5e7eb;"><strong>{html.escape(label_names[label])}</strong></td>
-                <td style="padding:10px;border-bottom:1px solid #e5e7eb;">{html.escape(str(status))}</td>
+                <td style="padding:10px;border-bottom:1px solid #e5e7eb;">{html.escape(_display_value(status))}</td>
                 <td style="padding:10px;border-bottom:1px solid #e5e7eb;"><span style="font-weight:700;color:{color};">{html.escape(reading)}</span></td>
                 <td style="padding:10px;border-bottom:1px solid #e5e7eb;">{html.escape(explanation)}</td>
             </tr>
@@ -401,7 +463,8 @@ def build_email_html_report(
 
     <div style="background:white;padding:24px;border-radius:0 0 14px 14px;margin-bottom:18px;">
         <div style="font-size:13px;color:#64748b;font-weight:700;">REGIME ATUAL</div>
-        <div style="font-size:27px;font-weight:800;margin-top:5px;">{html.escape(str(operational))}</div>
+        <div style="font-size:27px;font-weight:800;margin-top:5px;">{html.escape(_display_value(operational))}</div>
+        <div style="font-size:12px;color:#64748b;margin-top:4px;">Código técnico: {html.escape(str(operational))}</div>
         <div style="font-size:16px;line-height:1.55;margin-top:12px;">
             <strong>Interpretação:</strong> {html.escape(interpretation)}
         </div>
@@ -431,7 +494,8 @@ def build_email_html_report(
     </table>
 
     <div style="background:#fffbeb;border:1px solid #fde68a;padding:22px;border-radius:14px;margin-bottom:18px;">
-        <div style="font-size:13px;color:#92400e;font-weight:800;">DECISÃO DO ATLAS HOJE</div>
+        <div style="font-size:13px;color:#92400e;font-weight:800;">AÇÃO DO ATLAS HOJE</div>
+        <div style="font-size:22px;font-weight:800;margin-top:8px;">{html.escape(_display_value(position))}</div>
         <div style="font-size:18px;font-weight:700;margin-top:10px;">{html.escape(action_text)}</div>
     </div>
 
@@ -439,7 +503,7 @@ def build_email_html_report(
         <tr>
             <td style="width:33%;background:white;padding:20px;border-radius:12px;text-align:center;">
                 <div style="font-size:12px;color:#64748b;">POSIÇÃO EXISTENTE</div>
-                <div style="font-size:22px;font-weight:800;">{html.escape(str(position))}</div>
+                <div style="font-size:22px;font-weight:800;">{html.escape(_display_value(position))}</div>
             </td>
             <td style="width:33%;background:white;padding:20px;border-radius:12px;text-align:center;">
                 <div style="font-size:12px;color:#64748b;">NOVO APORTE S&P</div>
@@ -467,10 +531,12 @@ def build_email_html_report(
 
     <div style="background:white;padding:22px;border-radius:14px;margin-bottom:18px;">
         <div style="font-size:18px;font-weight:800;">PAINEL DA RESERVA</div>
-        <div style="margin-top:12px;line-height:1.7;">
+        <div style="margin-top:12px;line-height:1.8;">
             <strong>Estágio atual:</strong> {html.escape(str(reserve_stage))}<br>
-            <strong>Status:</strong> {html.escape(str(reserve_status))}<br>
-            <strong>Reserva potencialmente utilizável agora:</strong> {reserve_now}
+            <strong>Status da reserva:</strong>
+            <span style="font-weight:800;">{html.escape(_display_value(reserve_status))}</span><br>
+            <strong>Reserva liberada para uso agora:</strong>
+            <span style="font-size:20px;font-weight:800;">{reserve_now}</span>
         </div>
 
         <table width="100%" cellpadding="10" cellspacing="0" style="border-collapse:collapse;margin-top:14px;font-size:14px;">
@@ -495,9 +561,9 @@ def build_email_html_report(
     <div style="background:white;padding:22px;border-radius:14px;margin-bottom:18px;">
         <div style="font-size:18px;font-weight:800;">DIAGNÓSTICO ESTRUTURAL</div>
         <div style="margin-top:12px;line-height:1.8;">
-            <strong>Fase do ciclo:</strong> {html.escape(str(cycle_phase))}<br>
-            <strong>Risco estrutural:</strong> {html.escape(str(structural_risk))}<br>
-            <strong>Timing de topo:</strong> {html.escape(str(top_timing))}
+            <strong>Fase do ciclo:</strong> {html.escape(_display_value(cycle_phase))}<br>
+            <strong>Risco estrutural:</strong> {html.escape(_display_value(structural_risk))}<br>
+            <strong>Timing de topo:</strong> {html.escape(_display_value(top_timing))}
         </div>
     </div>
 
@@ -1093,7 +1159,7 @@ def build_executive_report(
     lines.append("")
 
     lines.append(
-        "DECISÃO DO ATLAS HOJE"
+        "AÇÃO DO ATLAS HOJE"
     )
 
     lines.append("-" * 72)
