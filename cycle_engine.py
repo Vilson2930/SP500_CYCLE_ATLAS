@@ -120,6 +120,9 @@ from settings import (
     # Política
     CONTRIBUTION_POLICY,
     DEFAULT_EXISTING_POSITION,
+
+    # Reserva / deployment
+    RESERVE_DEPLOYMENT,
 )
 
 
@@ -1184,6 +1187,94 @@ def get_contribution_policy(
 
 
 # ============================================================
+# 17B. POLÍTICA DE UTILIZAÇÃO DA RESERVA
+# ============================================================
+#
+# Resultado do estudo histórico:
+#
+# -15% -> 40%
+# -20% -> +30%
+# -30% -> +20%
+# -35% -> +10%
+#
+# Regra de confirmação:
+#
+# se o regime estiver em RED_STRUCTURAL_STRESS,
+# a tranche NÃO é executada imediatamente;
+# ela fica PENDING até o regime deixar RED.
+#
+# IMPORTANTE:
+# Esta função classifica o estado operacional corrente.
+# O controle persistente de "já executado / ainda pendente"
+# deve ser feito pelo estado do episódio entre execuções.
+# ============================================================
+
+def get_reserve_deployment_policy(
+    drawdown,
+    operational_regime,
+):
+    dd = _safe_float(drawdown)
+
+    if not _valid(dd):
+        return {
+            "reserve_stage": 0,
+            "reserve_stage_fraction": 0.0,
+            "reserve_cumulative_fraction": 0.0,
+            "reserve_deployment_status": "NOT_ACTIVE",
+            "reserve_pending": False,
+            "reserve_blocked_by_regime": False,
+        }
+
+    levels = sorted(
+        [
+            (float(threshold), float(fraction))
+            for threshold, fraction in RESERVE_DEPLOYMENT.items()
+        ],
+        key=lambda x: x[0],
+        reverse=True,
+    )
+
+    stage = 0
+    stage_fraction = 0.0
+    cumulative_fraction = 0.0
+
+    for idx, (threshold, fraction) in enumerate(levels, start=1):
+        if dd <= threshold:
+            stage = idx
+            stage_fraction = fraction
+            cumulative_fraction += fraction
+
+    if stage == 0:
+        return {
+            "reserve_stage": 0,
+            "reserve_stage_fraction": 0.0,
+            "reserve_cumulative_fraction": 0.0,
+            "reserve_deployment_status": "NOT_ACTIVE",
+            "reserve_pending": False,
+            "reserve_blocked_by_regime": False,
+        }
+
+    if operational_regime == REGIME_RED:
+        return {
+            "reserve_stage": stage,
+            "reserve_stage_fraction": stage_fraction,
+            "reserve_cumulative_fraction": cumulative_fraction,
+            "reserve_deployment_status": "PENDING_REGIME_CONFIRMATION",
+            "reserve_pending": True,
+            "reserve_blocked_by_regime": True,
+        }
+
+    return {
+        "reserve_stage": stage,
+        "reserve_stage_fraction": stage_fraction,
+        "reserve_cumulative_fraction": cumulative_fraction,
+        "reserve_deployment_status": "DEPLOYMENT_ALLOWED",
+        "reserve_pending": False,
+        "reserve_blocked_by_regime": False,
+    }
+
+
+# ============================================================
 # 18. CLASSIFICAR UMA LINHA
 # ============================================================
 
@@ -1314,6 +1405,11 @@ def classify_row(
         operational_regime
     )
 
+    reserve_policy = get_reserve_deployment_policy(
+        drawdown=row.get("drawdown"),
+        operational_regime=operational_regime,
+    )
+
     return pd.Series({
 
         "valuation_regime":
@@ -1374,6 +1470,36 @@ def classify_row(
         "new_contribution_reserve":
             policy[
                 "new_contribution_reserve"
+            ],
+
+        "reserve_stage":
+            reserve_policy[
+                "reserve_stage"
+            ],
+
+        "reserve_stage_fraction":
+            reserve_policy[
+                "reserve_stage_fraction"
+            ],
+
+        "reserve_cumulative_fraction":
+            reserve_policy[
+                "reserve_cumulative_fraction"
+            ],
+
+        "reserve_deployment_status":
+            reserve_policy[
+                "reserve_deployment_status"
+            ],
+
+        "reserve_pending":
+            reserve_policy[
+                "reserve_pending"
+            ],
+
+        "reserve_blocked_by_regime":
+            reserve_policy[
+                "reserve_blocked_by_regime"
             ],
     })
 
@@ -1493,6 +1619,13 @@ def get_current_cycle_state(
 
         "new_contribution_equity",
         "new_contribution_reserve",
+
+        "reserve_stage",
+        "reserve_stage_fraction",
+        "reserve_cumulative_fraction",
+        "reserve_deployment_status",
+        "reserve_pending",
+        "reserve_blocked_by_regime",
     ]
 
     state = {}
