@@ -638,6 +638,95 @@ def download_all_fred() -> Dict[str, pd.DataFrame]:
 HISTORY_OF_MARKET_CAPE_URL = "https://historyofmarket.com/api/sp500/pe.json"
 MULTPL_CAPE_MONTHLY_URL = "https://www.multpl.com/shiller-pe/table/by-month"
 
+# Cache local de segurança.
+# É usado SOMENTE se todas as fontes CAPE falharem na execução atual.
+CAPE_STATE_CACHE_FILE = "data/current_state.csv"
+MAX_CACHED_CAPE_AGE_MONTHS = 3
+
+
+def _load_cached_cape_state():
+    """
+    Lê o último CAPE válido já persistido pelo Atlas.
+
+    Fail-safe:
+    - não recalcula valuation;
+    - não inventa dado;
+    - só reutiliza o último CAPE + percentil já conhecidos;
+    - rejeita cache excessivamente antigo.
+    """
+
+    cache_path = CAPE_STATE_CACHE_FILE
+
+    if not os.path.exists(cache_path):
+        return None
+
+    try:
+
+        cached = pd.read_csv(cache_path)
+
+        if cached is None or cached.empty:
+            return None
+
+        row = cached.iloc[-1]
+
+        cache_date = pd.to_datetime(
+            row.get("date"),
+            errors="coerce",
+        )
+
+        cache_cape = pd.to_numeric(
+            row.get("cape"),
+            errors="coerce",
+        )
+
+        cache_percentile = pd.to_numeric(
+            row.get("cape_percentile"),
+            errors="coerce",
+        )
+
+        if (
+            pd.isna(cache_date)
+            or pd.isna(cache_cape)
+            or pd.isna(cache_percentile)
+        ):
+            return None
+
+        if not (1 <= float(cache_cape) <= 100):
+            return None
+
+        if not (0 <= float(cache_percentile) <= 1):
+            return None
+
+        today_month = pd.Timestamp.today().to_period("M")
+        cache_month = pd.Timestamp(cache_date).to_period("M")
+
+        age_months = (
+            (today_month.year - cache_month.year) * 12
+            + (today_month.month - cache_month.month)
+        )
+
+        if age_months > MAX_CACHED_CAPE_AGE_MONTHS:
+            _print(
+                f"⚠️ Cache CAPE rejeitado: {age_months} meses de defasagem."
+            )
+            return None
+
+        return {
+            "date": pd.Timestamp(cache_date),
+            "cape": float(cache_cape),
+            "cape_percentile": float(cache_percentile),
+            "age_months": int(age_months),
+        }
+
+    except Exception as error:
+
+        _print(
+            f"⚠️ Não foi possível ler cache CAPE: "
+            f"{type(error).__name__}: {error}"
+        )
+
+        return None
+
 
 def _parse_shiller_xls(content: bytes) -> pd.DataFrame:
     """
@@ -1751,6 +1840,9 @@ def build_master_dataset() -> pd.DataFrame:
     _print("")
     _print("[3/4] VALUATION / SHILLER")
 
+    cape_cache = None
+    cape_cache_active = False
+
     try:
 
         shiller = (
@@ -1761,7 +1853,7 @@ def build_master_dataset() -> pd.DataFrame:
 
         _print("")
         _print(
-            "⚠️ CAPE indisponível nesta execução."
+            "⚠️ CAPE indisponível nas fontes online desta execução."
         )
 
         _print(
@@ -1769,9 +1861,55 @@ def build_master_dataset() -> pd.DataFrame:
             f"{error}"
         )
 
-        _print(
-            "⚠️ O restante do Atlas continuará."
-        )
+        # ----------------------------------------------------
+        # FAIL-SAFE — ÚLTIMO CAPE VÁLIDO PERSISTIDO
+        # ----------------------------------------------------
+
+        cape_cache = _load_cached_cape_state()
+
+        if cape_cache is not None:
+
+            cape_cache_active = True
+
+            _print("")
+            _print(
+                "🛡️ FAIL-SAFE CAPE ATIVADO."
+            )
+
+            _print(
+                f"→ Último CAPE válido: "
+                f"{cape_cache['cape']:.2f}"
+            )
+
+            _print(
+                f"→ Percentil CAPE preservado: "
+                f"{cape_cache['cape_percentile'] * 100:.2f}%"
+            )
+
+            _print(
+                f"→ Data do cache: "
+                f"{cape_cache['date'].date()}"
+            )
+
+            _print(
+                "→ O Atlas NÃO rebaixará valuation por ausência de dado."
+            )
+
+        else:
+
+            _print("")
+            _print(
+                "❌ CAPE indisponível e nenhum cache válido foi encontrado."
+            )
+
+            _print(
+                "❌ Execução interrompida para evitar mudança falsa de regime."
+            )
+
+            raise RuntimeError(
+                "CAPE crítico indisponível e sem cache válido. "
+                "Fail-safe bloqueou a classificação operacional."
+            ) from error
 
         shiller = (
             pd.DataFrame(
@@ -1916,6 +2054,60 @@ def build_master_dataset() -> pd.DataFrame:
             master
         )
     )
+
+    # --------------------------------------------------------
+    # RESTAURAR CAPE/PERCENTIL DO CACHE NO ÚLTIMO MÊS
+    # --------------------------------------------------------
+    #
+    # Se as fontes online falharam, o histórico CAPE desta execução
+    # pode estar vazio. Nesse caso, preservamos apenas o último estado
+    # validado anteriormente. Isso impede UNKNOWN -> GREEN por falta
+    # de dado, sem inventar informação nova.
+    # --------------------------------------------------------
+
+    if cape_cache_active and cape_cache is not None:
+
+        latest_idx = master["date"].idxmax()
+
+        master.loc[
+            latest_idx,
+            "cape"
+        ] = cape_cache["cape"]
+
+        master.loc[
+            latest_idx,
+            "cape_percentile"
+        ] = cape_cache["cape_percentile"]
+
+        source_last_dates["cape"] = (
+            cape_cache["date"]
+        )
+
+        source_last_values["cape"] = (
+            cape_cache["cape"]
+        )
+
+        master.attrs["cape_fail_safe_active"] = True
+        master.attrs["cape_cache_date"] = cape_cache["date"]
+
+        _print("")
+        _print(
+            "🛡️ CAPE FAIL-SAFE APLICADO AO ESTADO ATUAL."
+        )
+
+        _print(
+            f"✅ CAPE preservado: "
+            f"{cape_cache['cape']:.2f}"
+        )
+
+        _print(
+            f"✅ Percentil preservado: "
+            f"{cape_cache['cape_percentile'] * 100:.2f}%"
+        )
+
+    else:
+
+        master.attrs["cape_fail_safe_active"] = False
 
     elapsed = (
         time.time()
