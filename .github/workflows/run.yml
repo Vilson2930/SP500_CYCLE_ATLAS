@@ -1,6 +1,7 @@
 name: SP500 Cycle Atlas
 
 on:
+
   # Execução manual pelo GitHub
   workflow_dispatch:
 
@@ -13,7 +14,9 @@ permissions:
   contents: write
 
 jobs:
+
   run-cycle-atlas:
+
     runs-on: ubuntu-latest
 
     steps:
@@ -60,7 +63,34 @@ jobs:
           fi
 
       # ======================================================
-      # 5. EXECUTAR ATLAS
+      # 5. VERIFICAR SECRETS DO E-MAIL
+      # ======================================================
+
+      - name: Check Email Secrets
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: |
+          if [ -z "$EMAIL_USER" ]; then
+            echo "❌ EMAIL_USER não foi carregado."
+            exit 1
+          fi
+
+          if [ -z "$EMAIL_PASSWORD" ]; then
+            echo "❌ EMAIL_PASSWORD não foi carregado."
+            exit 1
+          fi
+
+          if [ -z "$EMAIL_TO" ]; then
+            echo "❌ EMAIL_TO não foi carregado."
+            exit 1
+          fi
+
+          echo "✅ Secrets de e-mail carregados corretamente."
+
+      # ======================================================
+      # 6. EXECUTAR ATLAS
       # ======================================================
 
       - name: Run SP500 Cycle Atlas
@@ -72,7 +102,39 @@ jobs:
           python -u main.py
 
       # ======================================================
-      # 6. MOSTRAR ESTADO ATUAL
+      # 7. VERIFICAR PAINEL HTML
+      # ======================================================
+
+      - name: Check HTML report
+        run: |
+          echo "=========================================="
+          echo "CHECK HTML REPORT"
+          echo "=========================================="
+
+          if [ -f data/current_report.html ]; then
+            echo "✅ current_report.html encontrado."
+            ls -lh data/current_report.html
+          else
+            echo "❌ current_report.html não encontrado."
+            exit 1
+          fi
+
+      # ======================================================
+      # 8. ENVIAR PAINEL POR E-MAIL
+      # ======================================================
+
+      - name: Send SP500 Cycle Atlas Email
+        timeout-minutes: 2
+        env:
+          PYTHONUNBUFFERED: "1"
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+        run: |
+          python -u email_report.py
+
+      # ======================================================
+      # 9. MOSTRAR ESTADO ATUAL
       # ======================================================
 
       - name: Show current state
@@ -89,7 +151,7 @@ jobs:
           fi
 
       # ======================================================
-      # 7. MOSTRAR RELATÓRIO
+      # 10. MOSTRAR RELATÓRIO
       # ======================================================
 
       - name: Show report
@@ -106,7 +168,7 @@ jobs:
           fi
 
       # ======================================================
-      # 8. SALVAR RESULTADOS NO GITHUB
+      # 11. SALVAR RESULTADOS NO GITHUB
       # ======================================================
 
       - name: Commit updated data
@@ -118,6 +180,7 @@ jobs:
           git add data/current_state.csv
           git add data/cycle_history.csv
           git add data/current_report.txt
+          git add data/current_report.html
 
           if git diff --cached --quiet; then
             echo "Nenhuma alteração para salvar."
