@@ -81,6 +81,464 @@ def _fmt_date(value):
     except Exception:
         return str(value)
 
+# ============================================================
+# INTERPRETAÇÃO EXECUTIVA / PAINEL
+# ============================================================
+
+def _regime_interpretation(regime):
+
+    mapping = {
+        "GREEN_EXPANSION":
+            "Mercado em expansão, com ambiente predominantemente construtivo. "
+            "O Atlas permite aporte integral no S&P 500.",
+
+        "YELLOW_EXPENSIVE_BULL":
+            "O mercado permanece em tendência de alta e com força, porém o valuation "
+            "está historicamente elevado. A estratégia mantém a posição existente, "
+            "reduz a agressividade dos novos aportes e aumenta a reserva.",
+
+        "NEUTRAL_UNCERTAIN":
+            "Os sinais estão mistos e ainda não há confirmação suficiente para uma postura "
+            "mais agressiva. O Atlas divide o novo aporte entre S&P 500 e reserva.",
+
+        "ORANGE_DETERIORATION":
+            "Há deterioração relevante no ambiente de mercado e/ou macroeconômico. "
+            "O Atlas preserva a posição existente, mas direciona a maior parte do novo aporte "
+            "para a reserva.",
+
+        "RED_STRUCTURAL_STRESS":
+            "O mercado está em stress estrutural. O Atlas mantém a posição existente, "
+            "reduz fortemente os novos aportes no S&P 500 e bloqueia temporariamente "
+            "tranches da reserva, que ficam pendentes até a saída do regime RED.",
+
+        "BLUE_REASSESS_ACCUMULATION":
+            "O mercado passou por stress relevante e entrou em fase de reavaliação/acumulação. "
+            "O Atlas volta a priorizar aportes no S&P 500 e pode liberar tranches pendentes "
+            "quando as regras de drawdown forem atendidas.",
+    }
+
+    return mapping.get(
+        regime,
+        "O regime atual não possui interpretação executiva cadastrada."
+    )
+
+
+def _indicator_interpretation(label, status):
+
+    status = str(status)
+
+    mapping = {
+        ("TREND", "BULL"):
+            ("FAVORÁVEL", "A tendência principal do mercado permanece positiva."),
+
+        ("TREND", "BEAR"):
+            ("RISCO", "A tendência principal do mercado está deteriorada."),
+
+        ("VALUATION", "EXTREME_TOP_1"):
+            ("RISCO ELEVADO", "O valuation está no extremo histórico superior, aumentando o risco estrutural."),
+
+        ("VALUATION", "EXTREME_TOP_5"):
+            ("RISCO ELEVADO", "O valuation está entre os níveis historicamente mais altos."),
+
+        ("VALUATION", "VERY_HIGH"):
+            ("ATENÇÃO", "O valuation está elevado e reduz a margem de segurança para novos aportes."),
+
+        ("MOMENTUM", "STRONG_POSITIVE"):
+            ("FAVORÁVEL", "O momentum confirma força de preço no horizonte de 12 meses."),
+
+        ("MOMENTUM", "POSITIVE"):
+            ("FAVORÁVEL", "O momentum permanece positivo."),
+
+        ("MOMENTUM", "NEGATIVE"):
+            ("ATENÇÃO", "O momentum perdeu força e exige maior cautela."),
+
+        ("LABOR", "STABLE"):
+            ("FAVORÁVEL", "O mercado de trabalho permanece estável."),
+
+        ("LABOR", "DETERIORATING"):
+            ("ATENÇÃO", "O mercado de trabalho apresenta deterioração."),
+
+        ("LABOR", "DETERIORATION_SEVERE"):
+            ("RISCO", "O mercado de trabalho apresenta deterioração severa."),
+
+        ("INDUSTRIAL", "EXPANSION"):
+            ("FAVORÁVEL", "A produção industrial está em expansão."),
+
+        ("INDUSTRIAL", "CONTRACTION"):
+            ("ATENÇÃO", "A produção industrial está em contração."),
+
+        ("INDUSTRIAL", "CONTRACTION_STRONG"):
+            ("RISCO", "A produção industrial apresenta contração forte."),
+
+        ("INFLATION", "REACCELERATING"):
+            ("ATENÇÃO", "A inflação voltou a acelerar e pode limitar a flexibilização monetária."),
+
+        ("INFLATION", "HIGH"):
+            ("RISCO", "A inflação permanece elevada."),
+
+        ("INFLATION", "FALLING"):
+            ("FAVORÁVEL", "A inflação está desacelerando."),
+
+        ("MONETARY", "EASING"):
+            ("FAVORÁVEL", "A política monetária está em flexibilização."),
+
+        ("MONETARY", "TIGHTENING"):
+            ("RISCO", "A política monetária está em aperto."),
+
+        ("YIELD_CURVE", "INVERTED"):
+            ("RISCO", "A curva de juros está invertida, sinal historicamente associado a maior risco macro."),
+
+        ("YIELD_CURVE", "FLAT_POSITIVE"):
+            ("NEUTRO", "A curva está positiva, porém ainda pouco inclinada."),
+
+        ("YIELD_CURVE", "NORMAL_POSITIVE"):
+            ("FAVORÁVEL", "A curva de juros apresenta inclinação positiva normal."),
+    }
+
+    return mapping.get(
+        (label, status),
+        ("NEUTRO", f"Estado atual: {status}.")
+    )
+
+
+def _current_action_text(
+    operational,
+    equity,
+    reserve,
+    reserve_stage,
+    reserve_status,
+):
+
+    eq_pct = (
+        f"{float(equity) * 100:.0f}%"
+        if _valid(equity)
+        else "N/A"
+    )
+
+    reserve_pct = (
+        f"{float(reserve) * 100:.0f}%"
+        if _valid(reserve)
+        else "N/A"
+    )
+
+    try:
+        stage = int(reserve_stage)
+    except Exception:
+        stage = 0
+
+    if stage <= 0:
+        reserve_action = (
+            "Não utilizar a reserva acumulada agora; "
+            "continuar formando reserva conforme o regime."
+        )
+
+    elif reserve_status == "PENDING_REGIME_CONFIRMATION":
+        reserve_action = (
+            "O drawdown ativou tranche(s), mas a execução está bloqueada pelo regime RED. "
+            "Manter as tranches pendentes."
+        )
+
+    elif reserve_status == "DEPLOYMENT_ALLOWED":
+        reserve_action = (
+            "O drawdown ativou tranche(s) e o regime permite o deployment "
+            "conforme a política 40/30/20/10."
+        )
+
+    else:
+        reserve_action = (
+            "Aguardar confirmação operacional para utilização da reserva."
+        )
+
+    return (
+        f"Manter a posição existente. "
+        f"Direcionar {eq_pct} do novo aporte ao S&P 500 e {reserve_pct} à reserva. "
+        f"{reserve_action}"
+    )
+
+
+def _status_color(reading):
+
+    palette = {
+        "FAVORÁVEL": "#15803d",
+        "NEUTRO": "#64748b",
+        "ATENÇÃO": "#d97706",
+        "RISCO": "#dc2626",
+        "RISCO ELEVADO": "#b91c1c",
+    }
+
+    return palette.get(
+        reading,
+        "#64748b"
+    )
+
+
+def _build_indicator_rows_html(current_state):
+
+    import html
+
+    items = [
+        ("TREND", str(current_state.get("market_regime", "N/A")).replace(" MARKET", "")),
+        ("VALUATION", current_state.get("valuation_regime", "N/A")),
+        ("MOMENTUM", current_state.get("momentum_regime", "N/A")),
+        ("LABOR", current_state.get("labor_regime", "N/A")),
+        ("INDUSTRIAL", current_state.get("industrial_regime", "N/A")),
+        ("INFLATION", current_state.get("inflation_regime", "N/A")),
+        ("MONETARY", current_state.get("monetary_regime", "N/A")),
+        ("YIELD_CURVE", current_state.get("curve_regime", "N/A")),
+    ]
+
+    label_names = {
+        "TREND": "Tendência",
+        "VALUATION": "Valuation",
+        "MOMENTUM": "Momentum",
+        "LABOR": "Mercado de trabalho",
+        "INDUSTRIAL": "Produção industrial",
+        "INFLATION": "Inflação",
+        "MONETARY": "Política monetária",
+        "YIELD_CURVE": "Curva de juros",
+    }
+
+    rows = []
+
+    for label, status in items:
+
+        reading, explanation = _indicator_interpretation(
+            label,
+            status,
+        )
+
+        color = _status_color(
+            reading
+        )
+
+        rows.append(
+            f"""
+            <tr>
+                <td style="padding:10px;border-bottom:1px solid #e5e7eb;"><strong>{html.escape(label_names[label])}</strong></td>
+                <td style="padding:10px;border-bottom:1px solid #e5e7eb;">{html.escape(str(status))}</td>
+                <td style="padding:10px;border-bottom:1px solid #e5e7eb;"><span style="font-weight:700;color:{color};">{html.escape(reading)}</span></td>
+                <td style="padding:10px;border-bottom:1px solid #e5e7eb;">{html.escape(explanation)}</td>
+            </tr>
+            """
+        )
+
+    return "\n".join(rows)
+
+
+def build_email_html_report(
+    current_state: dict,
+    scorecard: pd.DataFrame | None = None,
+    regime_change: dict | None = None,
+):
+
+    import html
+
+    date = _fmt_date(current_state.get("date"))
+    sp500 = _fmt_number(current_state.get("sp500"))
+    drawdown = _fmt_pct(current_state.get("drawdown"))
+    cape = _fmt_number(current_state.get("cape"))
+    cape_percentile = _fmt_pct(current_state.get("cape_percentile"), 2)
+
+    operational = current_state.get("operational_regime", "N/A")
+    cycle_phase = current_state.get("cycle_phase", "N/A")
+    structural_risk = current_state.get("structural_risk", "N/A")
+    top_timing = current_state.get("top_timing", "N/A")
+    position = current_state.get("existing_position", "N/A")
+
+    equity = current_state.get("new_contribution_equity")
+    reserve = current_state.get("new_contribution_reserve")
+    reserve_stage = current_state.get("reserve_stage", 0)
+    reserve_status = current_state.get("reserve_deployment_status", "NOT_ACTIVE")
+
+    eq_pct = f"{float(equity) * 100:.0f}%" if _valid(equity) else "N/A"
+    reserve_pct = f"{float(reserve) * 100:.0f}%" if _valid(reserve) else "N/A"
+
+    interpretation = _regime_interpretation(operational)
+
+    action_text = _current_action_text(
+        operational,
+        equity,
+        reserve,
+        reserve_stage,
+        reserve_status,
+    )
+
+    indicator_rows = _build_indicator_rows_html(current_state)
+
+    try:
+        stage_int = int(reserve_stage)
+    except Exception:
+        stage_int = 0
+
+    reserve_now = (
+        _fmt_pct(current_state.get("reserve_cumulative_fraction", 0.0), 0)
+        if stage_int > 0
+        else "0%"
+    )
+
+    change_html = ""
+
+    if regime_change and regime_change.get("changed"):
+        change_html = f"""
+        <div style="margin:16px 0;padding:14px;background:#fff7ed;border-left:5px solid #ea580c;">
+            <strong>MUDANÇA DE REGIME:</strong>
+            {html.escape(str(regime_change.get("previous")))}
+            →
+            {html.escape(str(regime_change.get("current")))}
+        </div>
+        """
+
+    return f"""<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif;color:#0f172a;">
+<div style="max-width:920px;margin:0 auto;padding:24px;">
+
+    <div style="background:#0f172a;color:white;padding:26px;border-radius:14px 14px 0 0;">
+        <div style="font-size:13px;letter-spacing:1.5px;opacity:.8;">SP500 CYCLE ATLAS</div>
+        <div style="font-size:28px;font-weight:700;margin-top:5px;">PAINEL DE CONTROLE</div>
+        <div style="font-size:14px;margin-top:8px;opacity:.8;">Data da análise: {date}</div>
+    </div>
+
+    <div style="background:white;padding:24px;border-radius:0 0 14px 14px;margin-bottom:18px;">
+        <div style="font-size:13px;color:#64748b;font-weight:700;">REGIME ATUAL</div>
+        <div style="font-size:27px;font-weight:800;margin-top:5px;">{html.escape(str(operational))}</div>
+        <div style="font-size:16px;line-height:1.55;margin-top:12px;">
+            <strong>Interpretação:</strong> {html.escape(interpretation)}
+        </div>
+    </div>
+
+    {change_html}
+
+    <table role="presentation" width="100%" cellspacing="10" cellpadding="0" style="margin-bottom:16px;">
+        <tr>
+            <td style="width:25%;background:white;padding:18px;border-radius:12px;text-align:center;">
+                <div style="font-size:12px;color:#64748b;">S&P 500</div>
+                <div style="font-size:25px;font-weight:800;">{sp500}</div>
+            </td>
+            <td style="width:25%;background:white;padding:18px;border-radius:12px;text-align:center;">
+                <div style="font-size:12px;color:#64748b;">DRAWDOWN</div>
+                <div style="font-size:25px;font-weight:800;">{drawdown}</div>
+            </td>
+            <td style="width:25%;background:white;padding:18px;border-radius:12px;text-align:center;">
+                <div style="font-size:12px;color:#64748b;">CAPE</div>
+                <div style="font-size:25px;font-weight:800;">{cape}</div>
+            </td>
+            <td style="width:25%;background:white;padding:18px;border-radius:12px;text-align:center;">
+                <div style="font-size:12px;color:#64748b;">CAPE PERCENTIL</div>
+                <div style="font-size:25px;font-weight:800;">{cape_percentile}</div>
+            </td>
+        </tr>
+    </table>
+
+    <div style="background:#fffbeb;border:1px solid #fde68a;padding:22px;border-radius:14px;margin-bottom:18px;">
+        <div style="font-size:13px;color:#92400e;font-weight:800;">DECISÃO DO ATLAS HOJE</div>
+        <div style="font-size:18px;font-weight:700;margin-top:10px;">{html.escape(action_text)}</div>
+    </div>
+
+    <table role="presentation" width="100%" cellspacing="10" cellpadding="0" style="margin-bottom:18px;">
+        <tr>
+            <td style="width:33%;background:white;padding:20px;border-radius:12px;text-align:center;">
+                <div style="font-size:12px;color:#64748b;">POSIÇÃO EXISTENTE</div>
+                <div style="font-size:22px;font-weight:800;">{html.escape(str(position))}</div>
+            </td>
+            <td style="width:33%;background:white;padding:20px;border-radius:12px;text-align:center;">
+                <div style="font-size:12px;color:#64748b;">NOVO APORTE S&P</div>
+                <div style="font-size:28px;font-weight:800;color:#15803d;">{eq_pct}</div>
+            </td>
+            <td style="width:33%;background:white;padding:20px;border-radius:12px;text-align:center;">
+                <div style="font-size:12px;color:#64748b;">NOVA RESERVA</div>
+                <div style="font-size:28px;font-weight:800;color:#d97706;">{reserve_pct}</div>
+            </td>
+        </tr>
+    </table>
+
+    <div style="background:white;padding:22px;border-radius:14px;margin-bottom:18px;">
+        <div style="font-size:18px;font-weight:800;margin-bottom:12px;">POR QUE ESTAMOS NESTE PONTO?</div>
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;">
+            <tr style="background:#f8fafc;">
+                <th align="left" style="padding:10px;">Indicador</th>
+                <th align="left" style="padding:10px;">Estado</th>
+                <th align="left" style="padding:10px;">Leitura</th>
+                <th align="left" style="padding:10px;">Interpretação</th>
+            </tr>
+            {indicator_rows}
+        </table>
+    </div>
+
+    <div style="background:white;padding:22px;border-radius:14px;margin-bottom:18px;">
+        <div style="font-size:18px;font-weight:800;">PAINEL DA RESERVA</div>
+        <div style="margin-top:12px;line-height:1.7;">
+            <strong>Estágio atual:</strong> {html.escape(str(reserve_stage))}<br>
+            <strong>Status:</strong> {html.escape(str(reserve_status))}<br>
+            <strong>Reserva potencialmente utilizável agora:</strong> {reserve_now}
+        </div>
+
+        <table width="100%" cellpadding="10" cellspacing="0" style="border-collapse:collapse;margin-top:14px;font-size:14px;">
+            <tr style="background:#f8fafc;">
+                <th align="left">Drawdown</th>
+                <th align="left">Parcela da reserva</th>
+                <th align="left">Regra</th>
+            </tr>
+            <tr><td>-15%</td><td><strong>40%</strong></td><td>Primeiro estágio</td></tr>
+            <tr><td>-20%</td><td><strong>+30%</strong></td><td>Segundo estágio</td></tr>
+            <tr><td>-30%</td><td><strong>+20%</strong></td><td>Terceiro estágio</td></tr>
+            <tr><td>-35%</td><td><strong>+10%</strong></td><td>Quarto estágio</td></tr>
+        </table>
+
+        <div style="margin-top:14px;padding:14px;background:#fef2f2;border-left:5px solid #dc2626;">
+            <strong>Regra de confirmação:</strong>
+            se o Atlas estiver em RED_STRUCTURAL_STRESS, a tranche fica PENDING.
+            Ao sair de RED, as tranches pendentes podem ser liberadas.
+        </div>
+    </div>
+
+    <div style="background:white;padding:22px;border-radius:14px;margin-bottom:18px;">
+        <div style="font-size:18px;font-weight:800;">DIAGNÓSTICO ESTRUTURAL</div>
+        <div style="margin-top:12px;line-height:1.8;">
+            <strong>Fase do ciclo:</strong> {html.escape(str(cycle_phase))}<br>
+            <strong>Risco estrutural:</strong> {html.escape(str(structural_risk))}<br>
+            <strong>Timing de topo:</strong> {html.escape(str(top_timing))}
+        </div>
+    </div>
+
+    <div style="padding:18px;color:#64748b;font-size:12px;line-height:1.6;text-align:center;">
+        O SP500 Cycle Atlas classifica regime e disciplina aportes e utilização da reserva.
+        Ele não prevê preço, topo ou crash. Valuation extremo isoladamente não é sinal automático de venda.
+    </div>
+
+</div>
+</body>
+</html>
+"""
+
+
+def save_html_report(
+    report_html: str,
+):
+
+    DATA_DIR.mkdir(
+        parents=True,
+        exist_ok=True
+    )
+
+    report_html_path = (
+        DATA_DIR
+        /
+        "current_report.html"
+    )
+
+    with open(
+        report_html_path,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        file.write(
+            report_html
+        )
+
+    return report_html_path
+
 
 # ============================================================
 # 1. PREPARAR CURRENT STATE
@@ -618,6 +1076,80 @@ def build_executive_report(
         f"Regime operacional: {operational}"
     )
 
+    lines.append("")
+
+    lines.append(
+        "INTERPRETAÇÃO EXECUTIVA"
+    )
+
+    lines.append("-" * 72)
+
+    lines.append(
+        _regime_interpretation(
+            operational
+        )
+    )
+
+    lines.append("")
+
+    lines.append(
+        "DECISÃO DO ATLAS HOJE"
+    )
+
+    lines.append("-" * 72)
+
+    lines.append(
+        _current_action_text(
+            operational,
+            equity,
+            reserve,
+            reserve_stage,
+            reserve_deployment_status,
+        )
+    )
+
+    lines.append("")
+
+    lines.append(
+        "POR QUE ESTAMOS NESTE PONTO?"
+    )
+
+    lines.append("-" * 72)
+
+    interpretation_items = [
+        ("TREND", str(market_regime).replace(" MARKET", "")),
+        ("VALUATION", current_state.get("valuation_regime", "N/A")),
+        ("MOMENTUM", current_state.get("momentum_regime", "N/A")),
+        ("LABOR", current_state.get("labor_regime", "N/A")),
+        ("INDUSTRIAL", current_state.get("industrial_regime", "N/A")),
+        ("INFLATION", current_state.get("inflation_regime", "N/A")),
+        ("MONETARY", current_state.get("monetary_regime", "N/A")),
+        ("YIELD_CURVE", current_state.get("curve_regime", "N/A")),
+    ]
+
+    label_names = {
+        "TREND": "Tendência",
+        "VALUATION": "Valuation",
+        "MOMENTUM": "Momentum",
+        "LABOR": "Trabalho",
+        "INDUSTRIAL": "Indústria",
+        "INFLATION": "Inflação",
+        "MONETARY": "Política monetária",
+        "YIELD_CURVE": "Curva de juros",
+    }
+
+    for label, status in interpretation_items:
+
+        reading, explanation = _indicator_interpretation(
+            label,
+            status,
+        )
+
+        lines.append(
+            f"{label_names[label]:18s}: "
+            f"{status} | {reading} | {explanation}"
+        )
+
     # --------------------------------------------------------
     # Mudança
     # --------------------------------------------------------
@@ -1140,6 +1672,24 @@ def generate_report(
         )
     )
 
+    # --------------------------------------------------------
+    # Painel HTML para e-mail
+    # --------------------------------------------------------
+
+    report_html = (
+        build_email_html_report(
+            current_state=current_state,
+            scorecard=scorecard,
+            regime_change=regime_change,
+        )
+    )
+
+    report_html_path = (
+        save_html_report(
+            report_html
+        )
+    )
+
     return {
 
         "current_state":
@@ -1156,6 +1706,12 @@ def generate_report(
 
         "report_path":
             report_path,
+
+        "report_html":
+            report_html,
+
+        "report_html_path":
+            report_html_path,
     }
 
 
