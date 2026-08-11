@@ -165,17 +165,35 @@ def classify_valuation(
 
     # --------------------------------------------------------
     # Percentil tem prioridade quando disponível.
+    #
+    # GOVERNANÇA DO ESTUDO FINAL:
+    #
+    # TOP 1%  -> percentil >= 99%
+    # TOP 5%  -> percentil >= 95%
+    # VERY HIGH -> percentil >= 90%
+    #
+    # O pipeline pode fornecer o percentil em escala 0–1
+    # ou 0–100. Normalizamos aqui para 0–1.
     # --------------------------------------------------------
 
     if _valid(percentile):
 
-        if percentile >= CAPE_PERCENTILE_ULTRA:
+        percentile_normalized = percentile
+
+        if percentile_normalized > 1.0:
+            percentile_normalized = (
+                percentile_normalized
+                /
+                100.0
+            )
+
+        if percentile_normalized >= 0.99:
             return "EXTREME_TOP_1"
 
-        if percentile >= CAPE_PERCENTILE_EXTREME:
+        if percentile_normalized >= 0.95:
             return "EXTREME_TOP_5"
 
-        if percentile >= CAPE_PERCENTILE_HIGH:
+        if percentile_normalized >= 0.90:
             return "VERY_HIGH"
 
     # --------------------------------------------------------
