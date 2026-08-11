@@ -3,28 +3,28 @@ S&P 500 HISTORICAL CYCLE ATLAS
 ========================================================================
 
 Data: 2026-08-01
-S&P 500: 7,752.34
+S&P 500: 7,758.56
 
 DIAGNÓSTICO DO CICLO
 ------------------------------------------------------------------------
 Regime de mercado : BULL MARKET
-Fase do ciclo     : EXPANSION
-Risco estrutural  : MODERATE
+Fase do ciclo     : LATE_EXPANSION / VALUATION_EXTREME
+Risco estrutural  : HIGH
 Timing de topo    : NOT_CONFIRMED
-Regime operacional: GREEN_EXPANSION
+Regime operacional: YELLOW_EXPENSIVE_BULL
 
 INTERPRETAÇÃO EXECUTIVA
 ------------------------------------------------------------------------
-Mercado em expansão, com ambiente predominantemente construtivo. O Atlas permite aporte integral no S&P 500.
+O mercado permanece em tendência de alta e com força, porém o valuation está historicamente elevado. A estratégia mantém a posição existente, reduz a agressividade dos novos aportes e aumenta a reserva.
 
 AÇÃO DO ATLAS HOJE
 ------------------------------------------------------------------------
-Manter a posição existente. Direcionar 100% do novo aporte ao S&P 500 e 0% à reserva. Não utilizar a reserva acumulada agora; continuar formando reserva conforme o regime.
+Manter a posição existente. Direcionar 60% do novo aporte ao S&P 500 e 40% à reserva. Não utilizar a reserva acumulada agora; continuar formando reserva conforme o regime.
 
 POR QUE ESTAMOS NESTE PONTO?
 ------------------------------------------------------------------------
 Tendência         : BULL | FAVORÁVEL | A tendência principal do mercado permanece positiva.
-Valuation         : UNKNOWN | NEUTRO | Estado atual: UNKNOWN.
+Valuation         : EXTREME_TOP_5 | RISCO ELEVADO | O valuation está entre os níveis historicamente mais altos.
 Momentum          : STRONG_POSITIVE | FAVORÁVEL | O momentum confirma força de preço no horizonte de 12 meses.
 Trabalho          : STABLE | FAVORÁVEL | O mercado de trabalho permanece estável.
 Indústria         : EXPANSION | FAVORÁVEL | A produção industrial está em expansão.
@@ -35,15 +35,15 @@ Curva de juros    : FLAT_POSITIVE | NEUTRO | A curva está positiva, porém aind
 MERCADO
 ------------------------------------------------------------------------
 Drawdown         : 0.00%
-Momentum 12m     : 20.00%
+Momentum 12m     : 20.10%
 Idade do bull    : 3.92 anos
-Retorno do bull  : 116.21%
+Retorno do bull  : 116.38%
 
 VALUATION
 ------------------------------------------------------------------------
-CAPE             : N/A
-Percentil CAPE   : N/A
-Classificação    : UNKNOWN
+CAPE             : 42.39
+Percentil CAPE   : 98.99%
+Classificação    : EXTREME_TOP_5
 
 MACRO & MONETÁRIO
 ------------------------------------------------------------------------
@@ -58,7 +58,7 @@ Produção ind. YoY: +1.14%
 
 CLASSIFICAÇÕES
 ------------------------------------------------------------------------
-Valuation       : UNKNOWN
+Valuation       : EXTREME_TOP_5
 Momentum        : STRONG_POSITIVE
 Drawdown        : NORMAL
 Labor           : STABLE
@@ -70,7 +70,7 @@ Yield curve     : FLAT_POSITIVE
 EVIDENCE SCORECARD
 ------------------------------------------------------------------------
 ✅ TREND | BULL | STRONG
-✅ VALUATION | UNKNOWN | STRONG
+⚠️ VALUATION | EXTREME_TOP_5 | STRONG
 ✅ MOMENTUM | STRONG_POSITIVE | MODERATE
 ✅ LABOR | STABLE | STRONG
 ✅ INDUSTRIAL | EXPANSION | MODERATE
@@ -81,8 +81,8 @@ EVIDENCE SCORECARD
 POLÍTICA OPERACIONAL
 ------------------------------------------------------------------------
 Posição existente: HOLD
-Novo aporte S&P : 100%
-Nova reserva    : 0%
+Novo aporte S&P : 60%
+Nova reserva    : 40%
 
 UTILIZAÇÃO DA RESERVA
 ------------------------------------------------------------------------
