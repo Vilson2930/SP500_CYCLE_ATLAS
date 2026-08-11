@@ -23,7 +23,7 @@ Retorno do bull  : 116.23%
 VALUATION
 ------------------------------------------------------------------------
 CAPE             : 42.39
-Percentil CAPE   : 99.0%
+Percentil CAPE   : 98.99%
 Classificação    : EXTREME_TOP_5
 
 MACRO & MONETÁRIO
