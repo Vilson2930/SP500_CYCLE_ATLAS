@@ -131,6 +131,11 @@ def main():
         "sp500",
         "drawdown",
 
+        # Diagnóstico CAPE
+        "cape",
+        "cape_percentile",
+        "valuation_regime",
+
         "market_regime",
         "cycle_phase",
 
@@ -139,7 +144,6 @@ def main():
 
         "operational_regime",
 
-        "valuation_regime",
         "momentum_regime",
 
         "labor_regime",
@@ -149,12 +153,12 @@ def main():
         "monetary_regime",
         "curve_regime",
 
-        # Nova política de aporte
+        # Política de aporte
         "existing_position",
         "new_contribution_equity",
         "new_contribution_reserve",
 
-        # Novo estudo da reserva
+        # Estudo da reserva
         "reserve_stage",
         "reserve_stage_fraction",
         "reserve_cumulative_fraction",
@@ -171,6 +175,82 @@ def main():
                 f"{field:32s}: "
                 f"{current_state[field]}"
             )
+
+    # ========================================================
+    # 4B. DIAGNÓSTICO CAPE
+    # ========================================================
+
+    print("")
+    print(REPORT_SEPARATOR)
+    print("DIAGNÓSTICO CAPE")
+    print(REPORT_SEPARATOR)
+
+    cape_value = (
+        current_state.get(
+            "cape"
+        )
+    )
+
+    cape_percentile = (
+        current_state.get(
+            "cape_percentile"
+        )
+    )
+
+    valuation_regime = (
+        current_state.get(
+            "valuation_regime"
+        )
+    )
+
+    print(
+        f"CAPE bruto                 : "
+        f"{cape_value!r}"
+    )
+
+    print(
+        f"CAPE percentile bruto      : "
+        f"{cape_percentile!r}"
+    )
+
+    if cape_percentile is not None:
+
+        try:
+
+            cape_percentile_float = float(
+                cape_percentile
+            )
+
+            print(
+                f"CAPE percentile 8 casas    : "
+                f"{cape_percentile_float:.8f}"
+            )
+
+            if cape_percentile_float <= 1.0:
+
+                print(
+                    f"CAPE percentile em %        : "
+                    f"{cape_percentile_float * 100:.6f}%"
+                )
+
+            else:
+
+                print(
+                    f"CAPE percentile em %        : "
+                    f"{cape_percentile_float:.6f}%"
+                )
+
+        except Exception:
+
+            print(
+                "CAPE percentile formatado   : "
+                "indisponível"
+            )
+
+    print(
+        f"Valuation classificado     : "
+        f"{valuation_regime}"
+    )
 
     # ========================================================
     # 5. SCORECARD
