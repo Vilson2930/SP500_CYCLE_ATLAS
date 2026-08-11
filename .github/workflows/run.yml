@@ -105,7 +105,7 @@ jobs:
       # 7. VERIFICAR PAINEL HTML
       # ======================================================
 
-      - name: Check HTML report
+      - name: Check HTML Report
         run: |
           echo "=========================================="
           echo "CHECK HTML REPORT"
@@ -120,11 +120,40 @@ jobs:
           fi
 
       # ======================================================
-      # 8. ENVIAR PAINEL POR E-MAIL
+      # 8. GERAR PDF INSTITUCIONAL
+      # ======================================================
+
+      - name: Generate PDF Report
+        timeout-minutes: 5
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python -u pdf_report.py
+
+      # ======================================================
+      # 9. VERIFICAR PDF
+      # ======================================================
+
+      - name: Check PDF Report
+        run: |
+          echo "=========================================="
+          echo "CHECK PDF REPORT"
+          echo "=========================================="
+
+          if [ -f reports/relatorio_sp500_cycle_atlas.pdf ]; then
+            echo "✅ PDF institucional encontrado."
+            ls -lh reports/relatorio_sp500_cycle_atlas.pdf
+          else
+            echo "❌ PDF institucional não encontrado."
+            exit 1
+          fi
+
+      # ======================================================
+      # 10. ENVIAR PAINEL + PDF POR E-MAIL
       # ======================================================
 
       - name: Send SP500 Cycle Atlas Email
-        timeout-minutes: 2
+        timeout-minutes: 3
         env:
           PYTHONUNBUFFERED: "1"
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
@@ -134,7 +163,7 @@ jobs:
           python -u email_report.py
 
       # ======================================================
-      # 9. MOSTRAR ESTADO ATUAL
+      # 11. MOSTRAR ESTADO ATUAL
       # ======================================================
 
       - name: Show current state
@@ -151,7 +180,7 @@ jobs:
           fi
 
       # ======================================================
-      # 10. MOSTRAR RELATÓRIO
+      # 12. MOSTRAR RELATÓRIO TXT
       # ======================================================
 
       - name: Show report
@@ -168,7 +197,7 @@ jobs:
           fi
 
       # ======================================================
-      # 11. SALVAR RESULTADOS NO GITHUB
+      # 13. SALVAR RESULTADOS NO GITHUB
       # ======================================================
 
       - name: Commit updated data
@@ -181,6 +210,7 @@ jobs:
           git add data/cycle_history.csv
           git add data/current_report.txt
           git add data/current_report.html
+          git add reports/relatorio_sp500_cycle_atlas.pdf
 
           if git diff --cached --quiet; then
             echo "Nenhuma alteração para salvar."
