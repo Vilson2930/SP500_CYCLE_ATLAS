@@ -399,7 +399,7 @@ def build_executive_report(
         current_state.get(
             "cape_percentile"
         ),
-        1
+        2
     )
 
     bull_age = (
