@@ -3,11 +3,10 @@
 # email_report.py
 # ============================================================
 #
-# Responsável por:
+# Envia:
 #
-# - ler o painel HTML gerado pelo report.py
-# - enviar o relatório por e-mail
-# - usar credenciais armazenadas em GitHub Secrets
+# 1. Painel HTML no corpo do e-mail
+# 2. PDF institucional completo como anexo
 #
 # Secrets esperados:
 #
@@ -21,17 +20,22 @@ from __future__ import annotations
 
 import os
 import smtplib
+import mimetypes
+
 from pathlib import Path
+from datetime import datetime
 from email.message import EmailMessage
 from email.utils import formataddr
-from datetime import datetime
 
 
 # ============================================================
-# CONFIGURAÇÃO
+# CAMINHOS
 # ============================================================
 
 DATA_DIR = Path("data")
+
+REPORTS_DIR = Path("reports")
+
 
 HTML_REPORT_FILE = (
     DATA_DIR
@@ -39,11 +43,24 @@ HTML_REPORT_FILE = (
     "current_report.html"
 )
 
+
 TXT_REPORT_FILE = (
     DATA_DIR
     /
     "current_report.txt"
 )
+
+
+PDF_REPORT_FILE = (
+    REPORTS_DIR
+    /
+    "relatorio_sp500_cycle_atlas.pdf"
+)
+
+
+# ============================================================
+# SMTP
+# ============================================================
 
 SMTP_HOST = "smtp.gmail.com"
 
@@ -51,7 +68,7 @@ SMTP_PORT = 465
 
 
 # ============================================================
-# UTILITÁRIOS
+# VARIÁVEIS DE AMBIENTE
 # ============================================================
 
 def _get_required_env(
@@ -59,17 +76,22 @@ def _get_required_env(
 ) -> str:
 
     value = os.getenv(
-        name
-    )
+        name,
+        ""
+    ).strip()
 
     if not value:
 
         raise RuntimeError(
-            f"Variável de ambiente obrigatória não encontrada: {name}"
+            f"Variável obrigatória não encontrada: {name}"
         )
 
-    return value.strip()
+    return value
 
+
+# ============================================================
+# CARREGAR HTML
+# ============================================================
 
 def _load_html_report() -> str:
 
@@ -80,10 +102,25 @@ def _load_html_report() -> str:
             f"{HTML_REPORT_FILE}"
         )
 
-    return HTML_REPORT_FILE.read_text(
-        encoding="utf-8"
+    html_report = (
+        HTML_REPORT_FILE
+        .read_text(
+            encoding="utf-8"
+        )
     )
 
+    if not html_report.strip():
+
+        raise RuntimeError(
+            "Relatório HTML está vazio."
+        )
+
+    return html_report
+
+
+# ============================================================
+# CARREGAR TXT
+# ============================================================
 
 def _load_text_report() -> str:
 
@@ -91,17 +128,58 @@ def _load_text_report() -> str:
 
         return (
             "SP500 Cycle Atlas\n\n"
-            "O relatório em HTML foi gerado, "
-            "mas a versão TXT não foi encontrada."
+            "O painel HTML está disponível, "
+            "mas o relatório TXT não foi encontrado."
         )
 
-    return TXT_REPORT_FILE.read_text(
-        encoding="utf-8"
+    text_report = (
+        TXT_REPORT_FILE
+        .read_text(
+            encoding="utf-8"
+        )
     )
+
+    if not text_report.strip():
+
+        return (
+            "SP500 Cycle Atlas\n\n"
+            "Relatório TXT vazio."
+        )
+
+    return text_report
 
 
 # ============================================================
-# ASSUNTO DO E-MAIL
+# VALIDAR PDF
+# ============================================================
+
+def _validate_pdf_report() -> Path:
+
+    if not PDF_REPORT_FILE.exists():
+
+        raise FileNotFoundError(
+            f"PDF não encontrado: "
+            f"{PDF_REPORT_FILE}"
+        )
+
+    file_size = (
+        PDF_REPORT_FILE
+        .stat()
+        .st_size
+    )
+
+    if file_size < 1000:
+
+        raise RuntimeError(
+            "O PDF existe, mas parece inválido "
+            f"({file_size} bytes)."
+        )
+
+    return PDF_REPORT_FILE
+
+
+# ============================================================
+# ASSUNTO
 # ============================================================
 
 def build_subject() -> str:
@@ -114,14 +192,58 @@ def build_subject() -> str:
     )
 
     return (
-        f"SP500 Cycle Atlas | "
-        f"Painel de Controle | "
+        "SP500 Cycle Atlas | "
+        "Painel de Controle | "
         f"{date_str}"
     )
 
 
 # ============================================================
-# MONTAR MENSAGEM
+# ANEXAR PDF
+# ============================================================
+
+def attach_pdf(
+    message: EmailMessage,
+    pdf_path: Path,
+):
+
+    mime_type, _ = (
+        mimetypes
+        .guess_type(
+            str(pdf_path)
+        )
+    )
+
+    if mime_type:
+
+        maintype, subtype = (
+            mime_type
+            .split(
+                "/",
+                1
+            )
+        )
+
+    else:
+
+        maintype = "application"
+        subtype = "pdf"
+
+    pdf_bytes = (
+        pdf_path
+        .read_bytes()
+    )
+
+    message.add_attachment(
+        pdf_bytes,
+        maintype=maintype,
+        subtype=subtype,
+        filename=pdf_path.name,
+    )
+
+
+# ============================================================
+# MONTAR E-MAIL
 # ============================================================
 
 def build_email_message(
@@ -129,25 +251,34 @@ def build_email_message(
     email_to: str,
     html_report: str,
     text_report: str,
+    pdf_path: Path,
 ) -> EmailMessage:
 
     message = EmailMessage()
 
-    message["From"] = formataddr(
-        (
-            "SP500 Cycle Atlas",
-            email_user,
+    # --------------------------------------------------------
+    # CABEÇALHO
+    # --------------------------------------------------------
+
+    message["From"] = (
+        formataddr(
+            (
+                "SP500 Cycle Atlas",
+                email_user,
+            )
         )
     )
 
-    message["To"] = email_to
+    message["To"] = (
+        email_to
+    )
 
     message["Subject"] = (
         build_subject()
     )
 
     # --------------------------------------------------------
-    # Fallback texto
+    # TEXTO FALLBACK
     # --------------------------------------------------------
 
     message.set_content(
@@ -155,7 +286,7 @@ def build_email_message(
     )
 
     # --------------------------------------------------------
-    # Corpo principal HTML
+    # HTML
     # --------------------------------------------------------
 
     message.add_alternative(
@@ -163,21 +294,33 @@ def build_email_message(
         subtype="html"
     )
 
+    # --------------------------------------------------------
+    # PDF
+    # --------------------------------------------------------
+
+    attach_pdf(
+        message=message,
+        pdf_path=pdf_path,
+    )
+
     return message
 
 
 # ============================================================
-# ENVIO SMTP
+# ENVIO
 # ============================================================
 
 def send_email_report():
 
+    print("")
     print("=" * 72)
-    print("SP500 CYCLE ATLAS — ENVIO DE E-MAIL")
+    print(
+        "SP500 CYCLE ATLAS — ENVIO DE E-MAIL"
+    )
     print("=" * 72)
 
     # --------------------------------------------------------
-    # Secrets / variáveis
+    # CREDENCIAIS
     # --------------------------------------------------------
 
     email_user = (
@@ -199,15 +342,15 @@ def send_email_report():
     )
 
     print(
-        f"Remetente: {email_user}"
+        f"Remetente     : {email_user}"
     )
 
     print(
-        f"Destinatário: {email_to}"
+        f"Destinatário  : {email_to}"
     )
 
     # --------------------------------------------------------
-    # Relatórios
+    # RELATÓRIOS
     # --------------------------------------------------------
 
     html_report = (
@@ -218,18 +361,33 @@ def send_email_report():
         _load_text_report()
     )
 
+    pdf_path = (
+        _validate_pdf_report()
+    )
+
+    print("")
     print(
-        f"HTML carregado: "
+        f"✅ HTML: "
         f"{HTML_REPORT_FILE}"
     )
 
     print(
-        f"TXT carregado: "
+        f"✅ TXT : "
         f"{TXT_REPORT_FILE}"
     )
 
+    print(
+        f"✅ PDF : "
+        f"{pdf_path}"
+    )
+
+    print(
+        f"✅ PDF tamanho: "
+        f"{pdf_path.stat().st_size / 1024:.1f} KB"
+    )
+
     # --------------------------------------------------------
-    # Mensagem
+    # MONTAR MENSAGEM
     # --------------------------------------------------------
 
     message = (
@@ -238,13 +396,15 @@ def send_email_report():
             email_to=email_to,
             html_report=html_report,
             text_report=text_report,
+            pdf_path=pdf_path,
         )
     )
 
     # --------------------------------------------------------
-    # Conexão segura
+    # SMTP
     # --------------------------------------------------------
 
+    print("")
     print(
         "→ Conectando ao Gmail SMTP..."
     )
@@ -265,7 +425,7 @@ def send_email_report():
         )
 
         print(
-            "→ Enviando relatório..."
+            "→ Enviando painel HTML + PDF..."
         )
 
         smtp.send_message(
@@ -273,8 +433,27 @@ def send_email_report():
         )
 
     print("")
+    print("=" * 72)
     print(
-        "✅ Relatório enviado por e-mail com sucesso."
+        "✅ RELATÓRIO ENVIADO COM SUCESSO"
+    )
+    print("=" * 72)
+
+    print("")
+    print(
+        "Conteúdo enviado:"
+    )
+
+    print(
+        "• Painel HTML no corpo do e-mail"
+    )
+
+    print(
+        "• Relatório institucional PDF anexado"
+    )
+
+    print(
+        f"• Arquivo: {pdf_path.name}"
     )
 
     return True
@@ -294,7 +473,9 @@ if __name__ == "__main__":
 
         print("")
         print("=" * 72)
-        print("❌ ERRO NO ENVIO DO E-MAIL")
+        print(
+            "❌ ERRO NO ENVIO DO E-MAIL"
+        )
         print("=" * 72)
 
         print(
