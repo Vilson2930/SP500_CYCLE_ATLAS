@@ -516,6 +516,48 @@ def build_executive_report(
         )
     )
 
+    reserve_stage = (
+        current_state.get(
+            "reserve_stage",
+            0
+        )
+    )
+
+    reserve_stage_fraction = (
+        current_state.get(
+            "reserve_stage_fraction",
+            0.0
+        )
+    )
+
+    reserve_cumulative_fraction = (
+        current_state.get(
+            "reserve_cumulative_fraction",
+            0.0
+        )
+    )
+
+    reserve_deployment_status = (
+        current_state.get(
+            "reserve_deployment_status",
+            "NOT_ACTIVE"
+        )
+    )
+
+    reserve_pending = (
+        current_state.get(
+            "reserve_pending",
+            False
+        )
+    )
+
+    reserve_blocked_by_regime = (
+        current_state.get(
+            "reserve_blocked_by_regime",
+            False
+        )
+    )
+
     # --------------------------------------------------------
     # Cabeçalho
     # --------------------------------------------------------
@@ -869,6 +911,115 @@ def build_executive_report(
     lines.append("")
 
     lines.append(
+        "UTILIZAÇÃO DA RESERVA"
+    )
+
+    lines.append("-" * 72)
+
+    try:
+        stage_int = int(reserve_stage)
+    except Exception:
+        stage_int = 0
+
+    if stage_int <= 0:
+
+        lines.append(
+            "Estágio atual   : 0"
+        )
+
+        lines.append(
+            "Status          : NOT_ACTIVE"
+        )
+
+        lines.append(
+            "Ação            : continuar formando reserva conforme o regime."
+        )
+
+    else:
+
+        lines.append(
+            f"Estágio atual   : {stage_int}"
+        )
+
+        if _valid(reserve_stage_fraction):
+
+            lines.append(
+                f"Tranche estágio : "
+                f"{float(reserve_stage_fraction) * 100:.0f}% da reserva-base"
+            )
+
+        if _valid(reserve_cumulative_fraction):
+
+            lines.append(
+                f"Tranche acum.   : "
+                f"{float(reserve_cumulative_fraction) * 100:.0f}% da reserva-base"
+            )
+
+        lines.append(
+            f"Status          : {reserve_deployment_status}"
+        )
+
+        if reserve_blocked_by_regime or reserve_pending:
+
+            lines.append(
+                "Condição        : RED_STRUCTURAL_STRESS bloqueia execução."
+            )
+
+            lines.append(
+                "Ação            : manter tranche(s) PENDING até sair de RED."
+            )
+
+        elif reserve_deployment_status == "DEPLOYMENT_ALLOWED":
+
+            lines.append(
+                "Condição        : drawdown atingido e regime não está RED."
+            )
+
+            lines.append(
+                "Ação            : deployment permitido conforme política 40/30/20/10."
+            )
+
+        else:
+
+            lines.append(
+                "Ação            : aguardar confirmação operacional."
+            )
+
+    lines.append("")
+
+    lines.append(
+        "REGRAS DA RESERVA"
+    )
+
+    lines.append("-" * 72)
+
+    lines.append(
+        "-15% drawdown -> 40% da reserva-base"
+    )
+
+    lines.append(
+        "-20% drawdown -> +30%"
+    )
+
+    lines.append(
+        "-30% drawdown -> +20%"
+    )
+
+    lines.append(
+        "-35% drawdown -> +10%"
+    )
+
+    lines.append(
+        "Se estiver RED_STRUCTURAL_STRESS: manter PENDING."
+    )
+
+    lines.append(
+        "Ao sair de RED: liberar as tranches pendentes."
+    )
+
+    lines.append("")
+
+    lines.append(
         "IMPORTANTE:"
     )
 
@@ -882,6 +1033,11 @@ def build_executive_report(
 
     lines.append(
         "Valuation extremo não é sinal automático de venda."
+    )
+
+    lines.append(
+        "Drawdown define o tamanho potencial da tranche; "
+        "o regime define se ela pode ser executada."
     )
 
     lines.append("")
