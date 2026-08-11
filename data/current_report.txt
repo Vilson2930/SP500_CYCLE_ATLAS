@@ -13,6 +13,25 @@ Risco estrutural  : HIGH
 Timing de topo    : NOT_CONFIRMED
 Regime operacional: YELLOW_EXPENSIVE_BULL
 
+INTERPRETAÇÃO EXECUTIVA
+------------------------------------------------------------------------
+O mercado permanece em tendência de alta e com força, porém o valuation está historicamente elevado. A estratégia mantém a posição existente, reduz a agressividade dos novos aportes e aumenta a reserva.
+
+DECISÃO DO ATLAS HOJE
+------------------------------------------------------------------------
+Manter a posição existente. Direcionar 60% do novo aporte ao S&P 500 e 40% à reserva. Não utilizar a reserva acumulada agora; continuar formando reserva conforme o regime.
+
+POR QUE ESTAMOS NESTE PONTO?
+------------------------------------------------------------------------
+Tendência         : BULL | FAVORÁVEL | A tendência principal do mercado permanece positiva.
+Valuation         : EXTREME_TOP_5 | RISCO ELEVADO | O valuation está entre os níveis historicamente mais altos.
+Momentum          : STRONG_POSITIVE | FAVORÁVEL | O momentum confirma força de preço no horizonte de 12 meses.
+Trabalho          : STABLE | FAVORÁVEL | O mercado de trabalho permanece estável.
+Indústria         : EXPANSION | FAVORÁVEL | A produção industrial está em expansão.
+Inflação          : REACCELERATING | ATENÇÃO | A inflação voltou a acelerar e pode limitar a flexibilização monetária.
+Política monetária: EASING | FAVORÁVEL | A política monetária está em flexibilização.
+Curva de juros    : FLAT_POSITIVE | NEUTRO | A curva está positiva, porém ainda pouco inclinada.
+
 MERCADO
 ------------------------------------------------------------------------
 Drawdown         : 0.00%
