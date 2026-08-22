@@ -3,7 +3,7 @@ S&P 500 HISTORICAL CYCLE ATLAS
 ========================================================================
 
 Data: 2026-08-01
-S&P 500: 7,641.16
+S&P 500: 7,674.37
 
 DIAGNÓSTICO DO CICLO
 ------------------------------------------------------------------------
@@ -24,7 +24,7 @@ Manter a posição existente. Direcionar 60% do novo aporte ao S&P 500 e 40% à 
 POR QUE ESTAMOS NESTE PONTO?
 ------------------------------------------------------------------------
 Tendência         : BULL | FAVORÁVEL | A tendência principal do mercado permanece positiva.
-Valuation         : EXTREME_TOP_1 | RISCO ELEVADO | O valuation está no extremo histórico superior, aumentando o risco estrutural.
+Valuation         : EXTREME_TOP_5 | RISCO ELEVADO | O valuation está entre os níveis historicamente mais altos.
 Momentum          : STRONG_POSITIVE | FAVORÁVEL | O momentum confirma força de preço no horizonte de 12 meses.
 Trabalho          : STABLE | FAVORÁVEL | O mercado de trabalho permanece estável.
 Indústria         : EXPANSION | FAVORÁVEL | A produção industrial está em expansão.
@@ -35,15 +35,15 @@ Curva de juros    : FLAT_POSITIVE | NEUTRO | A curva está positiva, porém aind
 MERCADO
 ------------------------------------------------------------------------
 Drawdown         : 0.00%
-Momentum 12m     : 18.28%
+Momentum 12m     : 18.79%
 Idade do bull    : 3.92 anos
-Retorno do bull  : 113.11%
+Retorno do bull  : 114.03%
 
 VALUATION
 ------------------------------------------------------------------------
-CAPE             : 42.56
-Percentil CAPE   : 99.07%
-Classificação    : EXTREME_TOP_1
+CAPE             : 41.96
+Percentil CAPE   : 98.73%
+Classificação    : EXTREME_TOP_5
 
 MACRO & MONETÁRIO
 ------------------------------------------------------------------------
@@ -58,7 +58,7 @@ Produção ind. YoY: +1.08%
 
 CLASSIFICAÇÕES
 ------------------------------------------------------------------------
-Valuation       : EXTREME_TOP_1
+Valuation       : EXTREME_TOP_5
 Momentum        : STRONG_POSITIVE
 Drawdown        : NORMAL
 Labor           : STABLE
@@ -70,7 +70,7 @@ Yield curve     : FLAT_POSITIVE
 EVIDENCE SCORECARD
 ------------------------------------------------------------------------
 ✅ TREND | BULL | STRONG
-⚠️ VALUATION | EXTREME_TOP_1 | STRONG
+⚠️ VALUATION | EXTREME_TOP_5 | STRONG
 ✅ MOMENTUM | STRONG_POSITIVE | MODERATE
 ✅ LABOR | STABLE | STRONG
 ✅ INDUSTRIAL | EXPANSION | MODERATE
