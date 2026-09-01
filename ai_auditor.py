@@ -52,6 +52,7 @@ import numpy as np
 import pandas as pd
 
 import requests
+import time
 
 from settings import (
 
@@ -779,6 +780,17 @@ def build_system_prompt() -> str:
     return """
 Você é o AUDITOR INDEPENDENTE do SP500 CYCLE ATLAS.
 
+IDIOMA OBRIGATÓRIO DA RESPOSTA:
+
+- Todo conteúdo textual produzido por você DEVE ser escrito exclusivamente em PORTUGUÊS DO BRASIL (pt-BR).
+- Isso vale para assessment, reason, issues, contradictions, warnings, strengths, manual_review_points e final_opinion.
+- NÃO escreva frases, explicações ou pareceres em inglês.
+- Preserve em inglês SOMENTE códigos técnicos oficiais, nomes de regimes, nomes de campos e status do sistema quando fizerem parte dos dados, por exemplo:
+  YELLOW_EXPENSIVE_BULL, CONFIRMED, CONFIRMED_WITH_WARNINGS, REVIEW_REQUIRED, DATA_INSUFFICIENT, HOLD, NOT_ACTIVE.
+- Ao mencionar um código técnico em uma frase, toda a explicação ao redor dele deve permanecer em português do Brasil.
+- Use caracteres Unicode normais do português. Para intervalos, escreva por extenso, por exemplo: "1 a 2 meses". NÃO use símbolos especiais como "■" para representar hífen, travessão ou intervalo.
+- Evite anglicismos quando houver equivalente técnico claro em português.
+
 Sua função NÃO é analisar o mercado livremente.
 Sua função NÃO é substituir o motor quantitativo.
 Sua função NÃO é criar uma segunda estratégia.
@@ -860,6 +872,10 @@ os dados fornecidos são insuficientes para uma auditoria confiável.
 Você deve devolver SOMENTE JSON válido.
 Nenhum markdown.
 Nenhum texto antes ou depois do JSON.
+
+IMPORTANTE SOBRE O IDIOMA DO JSON:
+Todos os VALORES TEXTUAIS analíticos do JSON devem estar em português do Brasil.
+As CHAVES do JSON e os códigos/status técnicos definidos pelo Atlas devem permanecer exatamente como especificados.
 
 Use exatamente esta estrutura:
 
@@ -1523,18 +1539,59 @@ def run_ai_audit(
                 "application/json",
         }
 
-        response = requests.post(
+        # --------------------------------------------------------
+        # RETRY PARA INSTABILIDADE TEMPORÁRIA DA NVIDIA
+        # --------------------------------------------------------
 
-            NVIDIA_CHAT_COMPLETIONS_URL,
+        retryable_status = {
+            429,
+            502,
+            503,
+            504,
+        }
 
-            headers=headers,
+        retry_delays = [
+            0,
+            10,
+            20,
+            40,
+        ]
 
-            json=request_payload,
+        response = None
 
-            timeout=180,
-        )
+        for attempt, delay in enumerate(
+            retry_delays,
+            start=1,
+        ):
 
-        if not response.ok:
+            if delay > 0:
+
+                print(
+                    f"→ Aguardando {delay}s antes da nova tentativa..."
+                )
+
+                time.sleep(
+                    delay
+                )
+
+            print(
+                f"→ NVIDIA NIM | tentativa {attempt}/{len(retry_delays)}"
+            )
+
+            response = requests.post(
+
+                NVIDIA_CHAT_COMPLETIONS_URL,
+
+                headers=headers,
+
+                json=request_payload,
+
+                timeout=180,
+            )
+
+            if response.ok:
+
+                break
 
             response_preview = (
                 response.text[:1500]
@@ -1542,10 +1599,33 @@ def run_ai_audit(
                 else "sem corpo de resposta"
             )
 
-            raise RuntimeError(
-                "NVIDIA NIM retornou erro HTTP "
-                f"{response.status_code}: "
-                f"{response_preview}"
+            if (
+                response.status_code
+                not in retryable_status
+            ):
+
+                raise RuntimeError(
+                    "NVIDIA NIM retornou erro HTTP "
+                    f"{response.status_code}: "
+                    f"{response_preview}"
+                )
+
+            if attempt == len(
+                retry_delays
+            ):
+
+                raise RuntimeError(
+                    "NVIDIA NIM permaneceu indisponível após "
+                    f"{len(retry_delays)} tentativas. "
+                    "Último erro HTTP "
+                    f"{response.status_code}: "
+                    f"{response_preview}"
+                )
+
+            print(
+                "⚠️ NVIDIA NIM temporariamente indisponível "
+                f"(HTTP {response.status_code}). "
+                "Nova tentativa será realizada."
             )
 
         try:
