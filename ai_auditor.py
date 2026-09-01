@@ -51,7 +51,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from openai import OpenAI
+import requests
 
 from settings import (
 
@@ -148,6 +148,10 @@ DEFAULT_AI_MODEL = (
 
 NVIDIA_BASE_URL = (
     "https://integrate.api.nvidia.com/v1"
+)
+
+NVIDIA_CHAT_COMPLETIONS_URL = (
+    f"{NVIDIA_BASE_URL}/chat/completions"
 )
 
 
@@ -1448,72 +1452,155 @@ def run_ai_audit(
             _get_nvidia_api_key()
         )
 
-        client = OpenAI(
-            base_url=NVIDIA_BASE_URL,
-            api_key=api_key,
-        )
-
         print(
-            "→ Enviando estado do Atlas para NVIDIA Nemotron..."
+            "→ Enviando estado do Atlas diretamente para NVIDIA Nemotron..."
         )
 
-        completion = (
-            client.chat.completions.create(
+        request_payload = {
 
-                model=model,
+            "model":
+                model,
 
-                messages=[
+            "messages": [
 
-                    {
-                        "role":
-                            "system",
+                {
+                    "role":
+                        "system",
 
-                        "content":
-                            build_system_prompt(),
-                    },
-
-                    {
-                        "role":
-                            "user",
-
-                        "content":
-                            (
-                                "Audite a execução atual do "
-                                "SP500 CYCLE ATLAS.\n\n"
-                                "DADOS E REGRAS:\n"
-                                +
-                                json.dumps(
-                                    payload,
-                                    ensure_ascii=False,
-                                    indent=2,
-                                )
-                            ),
-                    },
-                ],
-
-                temperature=1.0,
-
-                top_p=0.95,
-
-                max_tokens=8192,
-
-                extra_body={
-                    "chat_template_kwargs": {
-                        "enable_thinking": True
-                    },
-                    "reasoning_budget": 4096,
+                    "content":
+                        build_system_prompt(),
                 },
 
-                stream=False,
+                {
+                    "role":
+                        "user",
+
+                    "content":
+                        (
+                            "Audite a execução atual do "
+                            "SP500 CYCLE ATLAS.\n\n"
+                            "DADOS E REGRAS:\n"
+                            +
+                            json.dumps(
+                                payload,
+                                ensure_ascii=False,
+                                indent=2,
+                            )
+                        ),
+                },
+            ],
+
+            "temperature":
+                1.0,
+
+            "top_p":
+                0.95,
+
+            "max_tokens":
+                8192,
+
+            "stream":
+                False,
+
+            "chat_template_kwargs": {
+                "enable_thinking":
+                    True,
+            },
+
+            "reasoning_budget":
+                4096,
+        }
+
+        headers = {
+
+            "Authorization":
+                f"Bearer {api_key}",
+
+            "Accept":
+                "application/json",
+
+            "Content-Type":
+                "application/json",
+        }
+
+        response = requests.post(
+
+            NVIDIA_CHAT_COMPLETIONS_URL,
+
+            headers=headers,
+
+            json=request_payload,
+
+            timeout=180,
+        )
+
+        if not response.ok:
+
+            response_preview = (
+                response.text[:1500]
+                if response.text
+                else "sem corpo de resposta"
+            )
+
+            raise RuntimeError(
+                "NVIDIA NIM retornou erro HTTP "
+                f"{response.status_code}: "
+                f"{response_preview}"
+            )
+
+        try:
+
+            response_data = (
+                response.json()
+            )
+
+        except Exception as error:
+
+            raise RuntimeError(
+                "NVIDIA NIM retornou resposta "
+                "que não é JSON válido."
+            ) from error
+
+        choices = (
+            response_data.get(
+                "choices"
+            )
+        )
+
+        if (
+            not isinstance(
+                choices,
+                list,
+            )
+            or
+            not choices
+        ):
+
+            raise RuntimeError(
+                "NVIDIA NIM não retornou "
+                "nenhuma choice."
+            )
+
+        message = (
+            choices[0]
+            .get(
+                "message",
+                {}
             )
         )
 
         raw_text = (
-            completion
-            .choices[0]
-            .message
-            .content
+            message.get(
+                "content"
+            )
         )
+
+        if not raw_text:
+
+            raise RuntimeError(
+                "NVIDIA Nemotron retornou "
+                "content vazio."
+            )
 
         audit = (
             _extract_json(
