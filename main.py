@@ -9,6 +9,8 @@
 # ↓
 # cycle_engine.py
 # ↓
+# ai_auditor.py
+# ↓
 # report.py
 #
 # ============================================================
@@ -30,6 +32,10 @@ from cycle_engine import (
 
 from report import (
     generate_report,
+)
+
+from ai_auditor import (
+    run_ai_audit,
 )
 
 from settings import (
@@ -282,12 +288,51 @@ def main():
         )
 
     # ========================================================
-    # 6. RELATÓRIO
+    # 6. AUDITORIA INDEPENDENTE POR IA
     # ========================================================
 
     print("")
     print(REPORT_SEPARATOR)
-    print("ETAPA 5 — RELATÓRIO")
+    print("ETAPA 5 — AUDITORIA NVIDIA NEMOTRON")
+    print(REPORT_SEPARATOR)
+
+    ai_audit = (
+        run_ai_audit(
+            current_state=current_state,
+            scorecard=scorecard,
+            freshness_audit=audit,
+            fail_safe=True,
+        )
+    )
+
+    print("")
+    print(
+        f"Status auditoria IA        : "
+        f"{ai_audit.get('audit_status')}"
+    )
+
+    print(
+        f"Consistência do engine     : "
+        f"{ai_audit.get('engine_consistency_score')}/100"
+    )
+
+    print(
+        f"Qualidade dos dados        : "
+        f"{ai_audit.get('data_quality_score')}/100"
+    )
+
+    print(
+        f"Divergência da IA          : "
+        f"{ai_audit.get('ai_dissent')}"
+    )
+
+    # ========================================================
+    # 7. RELATÓRIO
+    # ========================================================
+
+    print("")
+    print(REPORT_SEPARATOR)
+    print("ETAPA 6 — RELATÓRIO")
     print(REPORT_SEPARATOR)
 
     report_result = (
@@ -305,7 +350,7 @@ def main():
     )
 
     # ========================================================
-    # 7. MUDANÇA DE REGIME
+    # 8. MUDANÇA DE REGIME
     # ========================================================
 
     regime_change = (
@@ -332,7 +377,7 @@ def main():
             )
 
     # ========================================================
-    # 8. PAINEL OPERACIONAL DA RESERVA
+    # 9. PAINEL OPERACIONAL DA RESERVA
     # ========================================================
 
     print("")
@@ -455,7 +500,7 @@ def main():
         )
 
     # ========================================================
-    # 9. ENCERRAMENTO
+    # 10. ENCERRAMENTO
     # ========================================================
 
     print("")
