@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from datetime import datetime
+import json
 import math
 
 import pandas as pd
@@ -51,6 +52,7 @@ REPORTS_DIR = Path("reports")
 
 CURRENT_STATE_FILE = DATA_DIR / "current_state.csv"
 CURRENT_REPORT_TXT = DATA_DIR / "current_report.txt"
+AI_AUDIT_FILE = DATA_DIR / "ai_audit.json"
 
 PDF_FILE = REPORTS_DIR / "relatorio_sp500_cycle_atlas.pdf"
 
@@ -215,6 +217,11 @@ def _display_value(value):
         "BEAR MARKET": "MERCADO DE BAIXA",
         "BULL": "ALTA",
         "BEAR": "BAIXA",
+
+        "CONFIRMED": "CONFIRMADA",
+        "CONFIRMED_WITH_WARNINGS": "CONFIRMADA COM ALERTAS",
+        "REVIEW_REQUIRED": "REVISÃO NECESSÁRIA",
+        "DATA_INSUFFICIENT": "DADOS INSUFICIENTES",
     }
 
     return mapping.get(str(value), str(value))
@@ -409,6 +416,603 @@ def load_current_state() -> dict:
             )
 
     return row
+
+
+# ============================================================
+# CARREGAR AUDITORIA IA
+# ============================================================
+
+def load_ai_audit() -> dict | None:
+    """
+    Carrega a auditoria independente gerada pelo ai_auditor.py.
+
+    Fail-safe:
+    se o arquivo não existir ou estiver inválido, o PDF principal
+    continua sendo gerado e registra a indisponibilidade da camada IA.
+    """
+
+    if not AI_AUDIT_FILE.exists():
+        return None
+
+    try:
+        payload = json.loads(
+            AI_AUDIT_FILE.read_text(
+                encoding="utf-8"
+            )
+        )
+
+        if not isinstance(payload, dict):
+            return None
+
+        audit = payload.get("audit")
+
+        if not isinstance(audit, dict):
+            return None
+
+        return {
+            "generated_at": payload.get("generated_at"),
+            "model": payload.get("model"),
+            "audit": audit,
+        }
+
+    except Exception as error:
+        print(
+            "⚠️ Não foi possível carregar "
+            f"{AI_AUDIT_FILE}: {type(error).__name__}: {error}"
+        )
+        return None
+
+
+def _audit_status_color(status):
+    mapping = {
+        "CONFIRMED": GREEN,
+        "CONFIRMED_WITH_WARNINGS": AMBER,
+        "REVIEW_REQUIRED": RED,
+        "DATA_INSUFFICIENT": GRAY,
+    }
+    return mapping.get(str(status), GRAY)
+
+
+def _audit_assessment_text(section):
+    if not isinstance(section, dict):
+        return "N/A"
+    value = section.get("assessment")
+    return str(value) if _valid(value) else "N/A"
+
+
+def _audit_list(value):
+    if not isinstance(value, list):
+        return []
+    return [
+        str(item).strip()
+        for item in value
+        if str(item).strip()
+    ]
+
+
+def _append_audit_list(
+    story,
+    title,
+    items,
+    styles,
+):
+    items = _audit_list(items)
+
+    if not items:
+        return
+
+    story.append(
+        Paragraph(
+            f"<b>{_escape(title)}</b>",
+            styles["BodyAtlas"],
+        )
+    )
+
+    for item in items:
+        story.append(
+            Paragraph(
+                f"• {_escape(item)}",
+                styles["Small"],
+            )
+        )
+
+    story.append(
+        Spacer(
+            1,
+            2 * mm
+        )
+    )
+
+
+def _append_ai_audit_section(
+    story,
+    audit_payload,
+    styles,
+):
+    """
+    Acrescenta a auditoria NVIDIA ao FINAL do relatório.
+
+    Esta seção é apenas apresentação.
+    Não altera current_state, regime, aporte ou política de reserva.
+    """
+
+    story.append(
+        PageBreak()
+    )
+
+    story.append(
+        _section_title(
+            "Auditoria Independente por Inteligência Artificial",
+            styles,
+        )
+    )
+
+    story.append(
+        Paragraph(
+            "Camada independente de auditoria executada após o motor quantitativo. "
+            "A IA não recalcula o ciclo, não substitui o regime do Atlas e não altera "
+            "a política de aporte ou de utilização da reserva.",
+            styles["BodyAtlas"],
+        )
+    )
+
+    if not audit_payload:
+
+        unavailable = Table(
+            [[
+                Paragraph(
+                    "<b>AUDITORIA IA INDISPONÍVEL</b>",
+                    styles["BodyAtlas"],
+                )
+            ], [
+                Paragraph(
+                    "O arquivo data/ai_audit.json não estava disponível ou não pôde "
+                    "ser interpretado. O relatório quantitativo principal permanece "
+                    "válido e inalterado, porém esta execução não possui parecer "
+                    "independente da camada de IA.",
+                    styles["BodyAtlas"],
+                )
+            ]],
+            colWidths=[172 * mm],
+        )
+
+        unavailable.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), LIGHT),
+                ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ])
+        )
+
+        story.append(unavailable)
+        return
+
+    audit = audit_payload.get(
+        "audit",
+        {}
+    )
+
+    model = audit_payload.get(
+        "model",
+        "N/A"
+    )
+
+    generated_at = audit_payload.get(
+        "generated_at"
+    )
+
+    status = str(
+        audit.get(
+            "audit_status",
+            "DATA_INSUFFICIENT"
+        )
+    )
+
+    engine_score = _safe_float(
+        audit.get(
+            "engine_consistency_score"
+        ),
+        0.0,
+    )
+
+    data_score = _safe_float(
+        audit.get(
+            "data_quality_score"
+        ),
+        0.0,
+    )
+
+    dissent = bool(
+        audit.get(
+            "ai_dissent",
+            False
+        )
+    )
+
+    status_color = _audit_status_color(
+        status
+    )
+
+    status_table = Table(
+        [[
+            Paragraph(
+                "<b>STATUS DA AUDITORIA</b>",
+                styles["CardLabel"],
+            ),
+            Paragraph(
+                "<b>CONSISTÊNCIA DO ENGINE</b>",
+                styles["CardLabel"],
+            ),
+            Paragraph(
+                "<b>QUALIDADE DOS DADOS</b>",
+                styles["CardLabel"],
+            ),
+            Paragraph(
+                "<b>DIVERGÊNCIA IA</b>",
+                styles["CardLabel"],
+            ),
+        ], [
+            Paragraph(
+                (
+                    f"<font color='{status_color.hexval()}'>"
+                    f"<b>{_escape(_display_value(status))}</b>"
+                    f"</font>"
+                ),
+                styles["BodyAtlas"],
+            ),
+            Paragraph(
+                f"<b>{engine_score:.1f}/100</b>",
+                styles["CardValue"],
+            ),
+            Paragraph(
+                f"<b>{data_score:.1f}/100</b>",
+                styles["CardValue"],
+            ),
+            Paragraph(
+                "<b>SIM</b>" if dissent else "<b>NÃO</b>",
+                styles["CardValue"],
+            ),
+        ]],
+        colWidths=[
+            55 * mm,
+            42 * mm,
+            42 * mm,
+            33 * mm,
+        ],
+    )
+
+    status_table.setStyle(
+        TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), WHITE),
+            ("BOX", (0, 0), (-1, -1), 0.5, BORDER),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, BORDER),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("ALIGN", (1, 0), (-1, -1), "CENTER"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ])
+    )
+
+    story.append(
+        status_table
+    )
+
+    story.append(
+        Spacer(
+            1,
+            5 * mm
+        )
+    )
+
+    regime_audit = audit.get(
+        "regime_audit",
+        {}
+    )
+
+    audit_rows = [
+        (
+            "Regime auditado",
+            regime_audit.get(
+                "engine_regime",
+                "N/A"
+            ),
+        ),
+        (
+            "Avaliação do regime",
+            regime_audit.get(
+                "assessment",
+                "N/A"
+            ),
+        ),
+        (
+            "Integridade dos dados",
+            _audit_assessment_text(
+                audit.get(
+                    "data_integrity"
+                )
+            ),
+        ),
+        (
+            "Consistência das regras",
+            _audit_assessment_text(
+                audit.get(
+                    "rule_consistency"
+                )
+            ),
+        ),
+        (
+            "Política operacional",
+            _audit_assessment_text(
+                audit.get(
+                    "policy_consistency"
+                )
+            ),
+        ),
+        (
+            "Política da reserva",
+            _audit_assessment_text(
+                audit.get(
+                    "reserve_consistency"
+                )
+            ),
+        ),
+        (
+            "Coerência entre evidências",
+            _audit_assessment_text(
+                audit.get(
+                    "cross_evidence"
+                )
+            ),
+        ),
+    ]
+
+    audit_table_data = []
+
+    for label, value in audit_rows:
+        audit_table_data.append([
+            Paragraph(
+                f"<b>{_escape(label)}</b>",
+                styles["Small"],
+            ),
+            Paragraph(
+                _escape(
+                    _display_value(value)
+                ),
+                styles["Small"],
+            ),
+        ])
+
+    audit_table = Table(
+        audit_table_data,
+        colWidths=[
+            52 * mm,
+            120 * mm,
+        ],
+    )
+
+    audit_table.setStyle(
+        TableStyle([
+            ("BOX", (0, 0), (-1, -1), 0.5, BORDER),
+            ("INNERGRID", (0, 0), (-1, -1), 0.35, BORDER),
+            ("BACKGROUND", (0, 0), (0, -1), LIGHT),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ])
+    )
+
+    story.append(
+        audit_table
+    )
+
+    story.append(
+        Spacer(
+            1,
+            4 * mm
+        )
+    )
+
+    reason = regime_audit.get(
+        "reason"
+    )
+
+    if _valid(reason):
+        story.append(
+            Paragraph(
+                "<b>Fundamentação da auditoria do regime:</b> "
+                + _escape(reason),
+                styles["BodyAtlas"],
+            )
+        )
+
+    data_integrity = audit.get(
+        "data_integrity",
+        {}
+    )
+
+    rule_consistency = audit.get(
+        "rule_consistency",
+        {}
+    )
+
+    policy_consistency = audit.get(
+        "policy_consistency",
+        {}
+    )
+
+    reserve_consistency = audit.get(
+        "reserve_consistency",
+        {}
+    )
+
+    cross_evidence = audit.get(
+        "cross_evidence",
+        {}
+    )
+
+    _append_audit_list(
+        story,
+        "Problemas de integridade identificados",
+        data_integrity.get("issues", []),
+        styles,
+    )
+
+    _append_audit_list(
+        story,
+        "Inconsistências de regras",
+        rule_consistency.get("issues", []),
+        styles,
+    )
+
+    _append_audit_list(
+        story,
+        "Inconsistências da política operacional",
+        policy_consistency.get("issues", []),
+        styles,
+    )
+
+    _append_audit_list(
+        story,
+        "Inconsistências da política de reserva",
+        reserve_consistency.get("issues", []),
+        styles,
+    )
+
+    _append_audit_list(
+        story,
+        "Contradições entre evidências",
+        cross_evidence.get("contradictions", []),
+        styles,
+    )
+
+    _append_audit_list(
+        story,
+        "Alertas",
+        audit.get(
+            "warnings",
+            []
+        ),
+        styles,
+    )
+
+    _append_audit_list(
+        story,
+        "Pontos fortes da conclusão",
+        audit.get(
+            "strengths",
+            []
+        ),
+        styles,
+    )
+
+    _append_audit_list(
+        story,
+        "Pontos para revisão humana",
+        audit.get(
+            "manual_review_points",
+            []
+        ),
+        styles,
+    )
+
+    final_opinion = audit.get(
+        "final_opinion"
+    )
+
+    if _valid(final_opinion):
+
+        opinion_box = Table(
+            [[
+                Paragraph(
+                    "<b>PARECER FINAL DA AUDITORIA</b>",
+                    styles["Small"],
+                )
+            ], [
+                Paragraph(
+                    _escape(final_opinion),
+                    styles["BodyAtlas"],
+                )
+            ]],
+            colWidths=[172 * mm],
+        )
+
+        opinion_box.setStyle(
+            TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), LIGHT),
+                ("BOX", (0, 0), (-1, -1), 0.7, BORDER),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 7),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ])
+        )
+
+        story.append(
+            Spacer(
+                1,
+                2 * mm
+            )
+        )
+
+        story.append(
+            opinion_box
+        )
+
+    story.append(
+        Spacer(
+            1,
+            4 * mm
+        )
+    )
+
+    metadata = (
+        f"<b>Modelo:</b> {_escape(model)}"
+    )
+
+    if _valid(generated_at):
+
+        try:
+            parsed = pd.to_datetime(
+                generated_at,
+                errors="coerce",
+            )
+
+            if not pd.isna(parsed):
+                metadata += (
+                    " | <b>Auditoria gerada em:</b> "
+                    + _escape(
+                        pd.Timestamp(parsed).strftime(
+                            "%d/%m/%Y %H:%M:%S"
+                        )
+                    )
+                )
+
+        except Exception:
+            pass
+
+    story.append(
+        Paragraph(
+            metadata,
+            styles["Small"],
+        )
+    )
+
+    story.append(
+        Paragraph(
+            "<b>Governança:</b> a auditoria de IA é uma camada de verificação. "
+            "O regime, a posição existente, os percentuais de aporte e a política "
+            "de reserva continuam sendo determinados exclusivamente pelo motor "
+            "quantitativo do SP500 Cycle Atlas.",
+            styles["Small"],
+        )
+    )
 
 
 # ============================================================
@@ -929,6 +1533,7 @@ def generate_pdf_report(
 ) -> Path:
 
     state = load_current_state()
+    ai_audit_payload = load_ai_audit()
 
     REPORTS_DIR.mkdir(
         parents=True,
@@ -1441,6 +2046,16 @@ def generate_pdf_report(
             f"{_escape(state_date_text)}.",
             styles["Small"]
         )
+    )
+
+    # --------------------------------------------------------
+    # AUDITORIA IA — SEMPRE A ÚLTIMA SEÇÃO DO PDF
+    # --------------------------------------------------------
+
+    _append_ai_audit_section(
+        story=story,
+        audit_payload=ai_audit_payload,
+        styles=styles,
     )
 
     # --------------------------------------------------------
