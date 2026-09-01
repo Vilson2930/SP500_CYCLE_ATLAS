@@ -2,8 +2,8 @@
 S&P 500 HISTORICAL CYCLE ATLAS
 ========================================================================
 
-Data: 2026-08-01
-S&P 500: 7,673.28
+Data: 2026-09-01
+S&P 500: 7,662.15
 
 DIAGNÓSTICO DO CICLO
 ------------------------------------------------------------------------
@@ -25,7 +25,7 @@ POR QUE ESTAMOS NESTE PONTO?
 ------------------------------------------------------------------------
 Tendência         : BULL | FAVORÁVEL | A tendência principal do mercado permanece positiva.
 Valuation         : EXTREME_TOP_5 | RISCO ELEVADO | O valuation está entre os níveis historicamente mais altos.
-Momentum          : STRONG_POSITIVE | FAVORÁVEL | O momentum confirma força de preço no horizonte de 12 meses.
+Momentum          : POSITIVE | FAVORÁVEL | O momentum permanece positivo.
 Trabalho          : STABLE | FAVORÁVEL | O mercado de trabalho permanece estável.
 Indústria         : EXPANSION | FAVORÁVEL | A produção industrial está em expansão.
 Inflação          : REACCELERATING | ATENÇÃO | A inflação voltou a acelerar e pode limitar a flexibilização monetária.
@@ -34,10 +34,10 @@ Curva de juros    : FLAT_POSITIVE | NEUTRO | A curva está positiva, porém aind
 
 MERCADO
 ------------------------------------------------------------------------
-Drawdown         : 0.00%
-Momentum 12m     : 18.78%
-Idade do bull    : 3.92 anos
-Retorno do bull  : 114.00%
+Drawdown         : -0.31%
+Momentum 12m     : 14.56%
+Idade do bull    : 4.00 anos
+Retorno do bull  : 113.69%
 
 VALUATION
 ------------------------------------------------------------------------
@@ -59,7 +59,7 @@ Produção ind. YoY: +1.08%
 CLASSIFICAÇÕES
 ------------------------------------------------------------------------
 Valuation       : EXTREME_TOP_5
-Momentum        : STRONG_POSITIVE
+Momentum        : POSITIVE
 Drawdown        : NORMAL
 Labor           : STABLE
 Industrial      : EXPANSION
@@ -71,7 +71,7 @@ EVIDENCE SCORECARD
 ------------------------------------------------------------------------
 ✅ TREND | BULL | STRONG
 ⚠️ VALUATION | EXTREME_TOP_5 | STRONG
-✅ MOMENTUM | STRONG_POSITIVE | MODERATE
+✅ MOMENTUM | POSITIVE | MODERATE
 ✅ LABOR | STABLE | STRONG
 ✅ INDUSTRIAL | EXPANSION | MODERATE
 ⚠️ INFLATION | REACCELERATING | MODERATE

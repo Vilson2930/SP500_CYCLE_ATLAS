@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-09-01T15:51:42.025725",
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "audit": {
+    "audit_status": "DATA_INSUFFICIENT",
+    "engine_consistency_score": 0,
+    "data_quality_score": 0,
+    "ai_dissent": false,
+    "regime_audit": {
+      "engine_regime": "YELLOW_EXPENSIVE_BULL",
+      "assessment": "AUDITORIA IA INDISPONÍVEL",
+      "reason": "O motor quantitativo foi preservado, mas a camada independente de IA não conseguiu concluir a auditoria."
+    },
+    "data_integrity": {
+      "assessment": "NÃO AUDITADO",
+      "issues": []
+    },
+    "rule_consistency": {
+      "assessment": "NÃO AUDITADO",
+      "issues": []
+    },
+    "policy_consistency": {
+      "assessment": "NÃO AUDITADO",
+      "issues": []
+    },
+    "reserve_consistency": {
+      "assessment": "NÃO AUDITADO",
+      "issues": []
+    },
+    "cross_evidence": {
+      "assessment": "NÃO AUDITADO",
+      "contradictions": []
+    },
+    "warnings": [
+      "Falha na camada de auditoria por IA. A conclusão original do Cycle Atlas não foi alterada."
+    ],
+    "strengths": [],
+    "manual_review_points": [
+      "Verificar disponibilidade da API de IA."
+    ],
+    "final_opinion": "A auditoria independente por IA não pôde ser concluída nesta execução. O resultado quantitativo original do SP500 Cycle Atlas permanece intacto e deve ser interpretado sem validação adicional da camada de IA.",
+    "audit_error": "RuntimeError: NVIDIA NIM retornou erro HTTP 403: {\"status\":403,\"title\":\"Forbidden\",\"detail\":\"Authorization failed\"}"
+  }
+}
