@@ -1,44 +1,58 @@
 {
-  "generated_at": "2026-09-01T16:34:46.721468",
+  "generated_at": "2026-09-01T16:40:07.417430",
   "model": "nvidia/nemotron-3-super-120b-a12b",
   "audit": {
-    "audit_status": "DATA_INSUFFICIENT",
-    "engine_consistency_score": 0,
-    "data_quality_score": 0,
+    "audit_status": "CONFIRMED_WITH_WARNINGS",
+    "engine_consistency_score": 92.0,
+    "data_quality_score": 88.0,
     "ai_dissent": false,
     "regime_audit": {
       "engine_regime": "YELLOW_EXPENSIVE_BULL",
-      "assessment": "AUDITORIA IA INDISPONÍVEL",
-      "reason": "O motor quantitativo foi preservado, mas a camada independente de IA não conseguiu concluir a auditoria."
+      "assessment": "O regime operacional selecionado pelo engine é compatível com a maioria dos indicadores, embora o CAPE esteja em faixa ultra-extrema, o que merece atenção.",
+      "reason": "O regime YELLOW_EXPENSIVE_BULL prevê equity 0.6 e reserve 0.4, refletindo um ambiente de alta valorização com momentum positivo e drawdown contido. Os indicadores de trabalho, produção industrial, política monetária e curva de juros sustentam a classificação, apesar do CAPE extremo."
     },
     "data_integrity": {
-      "assessment": "NÃO AUDITADO",
-      "issues": []
+      "assessment": "A maioria dos dados está atualizada com defasagem típica de publicação; alguns campos apresentam contagem de observações nula, mas isso não impede o cálculo dos indicadores.",
+      "issues": [
+        "CAPE com defasagem de 1 mês (último valor de agosto de 2026).",
+        "Fed Funds, Treasury 2Y/10Y, CPI, Desemprego, Sahm e Produção Industrial com defasagem de 2 meses (último valor de julho de 2026).",
+        "Campo 'observations' nulo para várias séries, indicando falta de metadados históricos."
+      ]
     },
     "rule_consistency": {
-      "assessment": "NÃO AUDITADO",
+      "assessment": "As classificações de valorização, momentum, drawdown, trabalho, industrial, inflação, monetária e curva de juros seguem as regras de threshold fornecidas.",
       "issues": []
     },
     "policy_consistency": {
-      "assessment": "NÃO AUDITADO",
+      "assessment": "As frações de equity e reserva, bem como a posição existente, correspondem exatamente à política do regime YELLOW_EXPENSIVE_BULL.",
       "issues": []
     },
     "reserve_consistency": {
-      "assessment": "NÃO AUDITADO",
+      "assessment": "A reserva está no estágio 0, sem fração alocada, status NOT_ACTIVE e não bloqueada, coerente com o drawdown atual acima do limite de ativação (-0,15).",
       "issues": []
     },
     "cross_evidence": {
-      "assessment": "NÃO AUDITADO",
+      "assessment": "Não há contradições materiais entre os indicadores de valorização, momentum, drawdown, trabalho, produção industrial, inflação, política monetária, curva de juros, fase do ciclo, risco estrutural e timing de topo.",
       "contradictions": []
     },
     "warnings": [
-      "Falha na camada de auditoria por IA. A conclusão original do Cycle Atlas não foi alterada."
+      "O CAPE está em faixa ultra-extrema (>40), o que pode indicar risco de correção apesar do regime YELLOW_EXPENSIVE_BULL.",
+      "A inflação está em fase de reaceleração e próxima do nível alto (4,0); caso ultrapasse esse limiar, pode pressionar o regime para estados mais defensivos.",
+      "Se o drawdown ultrapassar -0,15, a reserva será acionada e o regime pode mudar para ORANGE_DETERIORATION ou pior, dependendo de outros indicadores."
     ],
-    "strengths": [],
+    "strengths": [
+      "Política de contribuição validada pelo deterministic_policy_check (equity 0,6, reserve 0,4, posição HOLD).",
+      "Drawdown dentro do intervalo normal (-0,006), indicando ausência de perdas significativas recentes.",
+      "Mercado de trabalho estável (desemprego 4,1%, Sahm negativo).",
+      "Produção industrial em expansão (+1,08% YoY).",
+      "Politica monetária em afrouxamento (Fed Funds em queda de 0,70 pp em 12 meses) e curva de juros levemente positiva (spread 10y‑2y = 0,38)."
+    ],
     "manual_review_points": [
-      "Verificar disponibilidade da API de IA."
+      "Acompanhar a evolução do CAPE para verificar se permanecerá em faixa ultra-extrema ou retrocederá para níveis extremos.",
+      "Monitorar o drawdown; caso alcance -0,15, a reserva começará a ser deployada conforme a política.",
+      "Observar a inflação; se ultrapassar 4,0% (nível alto) pode mudar o regime inflacionário de REACCELERATING para HIGH.",
+      "Verificar se o Fed continua o ciclo de afrouxamento ou se há sinal de aperto que poderia mudar o regime monetário."
     ],
-    "final_opinion": "A auditoria independente por IA não pôde ser concluída nesta execução. O resultado quantitativo original do SP500 Cycle Atlas permanece intacto e deve ser interpretado sem validação adicional da camada de IA.",
-    "audit_error": "RuntimeError: NVIDIA NIM retornou erro HTTP 503: {\"error\":{\"message\":\"Service temporarily overloaded\",\"type\":\"Service Unavailable\",\"code\":503}}"
+    "final_opinion": "O engine do SP500 CYCLE ATLAS está internalmente consistente: o regime YELLOW_EXPENSIVE_BULL, as alocações de equity e reserva e a posição HOLD estão em conformidade com as regras e políticas definidas. Os dados apresentam defasagens típicas de publicação, mas não afetam materialmente a análise. O principal ponto de atenção permanece o CAPE em faixa ultra-extrema, que, embora não seja suficiente para alterar o regime atual, aumenta a vulnerabilidade a correções caso outros indicadores (drawdown, inflação, política monetária) piorarem. Recomenda-se manter a vigilância nos pontos de revisão listados."
   }
 }
