@@ -51,7 +51,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from openai import OpenAI
+import requests
 
 from settings import (
 
@@ -148,6 +148,10 @@ DEFAULT_AI_MODEL = (
 
 NVIDIA_BASE_URL = (
     "https://integrate.api.nvidia.com/v1"
+)
+
+NVIDIA_CHAT_COMPLETIONS_URL = (
+    f"{NVIDIA_BASE_URL}/chat/completions"
 )
 
 
@@ -775,6 +779,17 @@ def build_system_prompt() -> str:
     return """
 Você é o AUDITOR INDEPENDENTE do SP500 CYCLE ATLAS.
 
+IDIOMA OBRIGATÓRIO DA RESPOSTA:
+
+- Todo conteúdo textual produzido por você DEVE ser escrito exclusivamente em PORTUGUÊS DO BRASIL (pt-BR).
+- Isso vale para assessment, reason, issues, contradictions, warnings, strengths, manual_review_points e final_opinion.
+- NÃO escreva frases, explicações ou pareceres em inglês.
+- Preserve em inglês SOMENTE códigos técnicos oficiais, nomes de regimes, nomes de campos e status do sistema quando fizerem parte dos dados, por exemplo:
+  YELLOW_EXPENSIVE_BULL, CONFIRMED, CONFIRMED_WITH_WARNINGS, REVIEW_REQUIRED, DATA_INSUFFICIENT, HOLD, NOT_ACTIVE.
+- Ao mencionar um código técnico em uma frase, toda a explicação ao redor dele deve permanecer em português do Brasil.
+- Use caracteres Unicode normais do português. Para intervalos, escreva por extenso, por exemplo: "1 a 2 meses". NÃO use símbolos especiais como "■" para representar hífen, travessão ou intervalo.
+- Evite anglicismos quando houver equivalente técnico claro em português.
+
 Sua função NÃO é analisar o mercado livremente.
 Sua função NÃO é substituir o motor quantitativo.
 Sua função NÃO é criar uma segunda estratégia.
@@ -856,6 +871,10 @@ os dados fornecidos são insuficientes para uma auditoria confiável.
 Você deve devolver SOMENTE JSON válido.
 Nenhum markdown.
 Nenhum texto antes ou depois do JSON.
+
+IMPORTANTE SOBRE O IDIOMA DO JSON:
+Todos os VALORES TEXTUAIS analíticos do JSON devem estar em português do Brasil.
+As CHAVES do JSON e os códigos/status técnicos definidos pelo Atlas devem permanecer exatamente como especificados.
 
 Use exatamente esta estrutura:
 
@@ -1448,72 +1467,155 @@ def run_ai_audit(
             _get_nvidia_api_key()
         )
 
-        client = OpenAI(
-            base_url=NVIDIA_BASE_URL,
-            api_key=api_key,
-        )
-
         print(
-            "→ Enviando estado do Atlas para NVIDIA Nemotron..."
+            "→ Enviando estado do Atlas diretamente para NVIDIA Nemotron..."
         )
 
-        completion = (
-            client.chat.completions.create(
+        request_payload = {
 
-                model=model,
+            "model":
+                model,
 
-                messages=[
+            "messages": [
 
-                    {
-                        "role":
-                            "system",
+                {
+                    "role":
+                        "system",
 
-                        "content":
-                            build_system_prompt(),
-                    },
-
-                    {
-                        "role":
-                            "user",
-
-                        "content":
-                            (
-                                "Audite a execução atual do "
-                                "SP500 CYCLE ATLAS.\n\n"
-                                "DADOS E REGRAS:\n"
-                                +
-                                json.dumps(
-                                    payload,
-                                    ensure_ascii=False,
-                                    indent=2,
-                                )
-                            ),
-                    },
-                ],
-
-                temperature=1.0,
-
-                top_p=0.95,
-
-                max_tokens=8192,
-
-                extra_body={
-                    "chat_template_kwargs": {
-                        "enable_thinking": True
-                    },
-                    "reasoning_budget": 4096,
+                    "content":
+                        build_system_prompt(),
                 },
 
-                stream=False,
+                {
+                    "role":
+                        "user",
+
+                    "content":
+                        (
+                            "Audite a execução atual do "
+                            "SP500 CYCLE ATLAS.\n\n"
+                            "DADOS E REGRAS:\n"
+                            +
+                            json.dumps(
+                                payload,
+                                ensure_ascii=False,
+                                indent=2,
+                            )
+                        ),
+                },
+            ],
+
+            "temperature":
+                1.0,
+
+            "top_p":
+                0.95,
+
+            "max_tokens":
+                8192,
+
+            "stream":
+                False,
+
+            "chat_template_kwargs": {
+                "enable_thinking":
+                    True,
+            },
+
+            "reasoning_budget":
+                4096,
+        }
+
+        headers = {
+
+            "Authorization":
+                f"Bearer {api_key}",
+
+            "Accept":
+                "application/json",
+
+            "Content-Type":
+                "application/json",
+        }
+
+        response = requests.post(
+
+            NVIDIA_CHAT_COMPLETIONS_URL,
+
+            headers=headers,
+
+            json=request_payload,
+
+            timeout=180,
+        )
+
+        if not response.ok:
+
+            response_preview = (
+                response.text[:1500]
+                if response.text
+                else "sem corpo de resposta"
+            )
+
+            raise RuntimeError(
+                "NVIDIA NIM retornou erro HTTP "
+                f"{response.status_code}: "
+                f"{response_preview}"
+            )
+
+        try:
+
+            response_data = (
+                response.json()
+            )
+
+        except Exception as error:
+
+            raise RuntimeError(
+                "NVIDIA NIM retornou resposta "
+                "que não é JSON válido."
+            ) from error
+
+        choices = (
+            response_data.get(
+                "choices"
+            )
+        )
+
+        if (
+            not isinstance(
+                choices,
+                list,
+            )
+            or
+            not choices
+        ):
+
+            raise RuntimeError(
+                "NVIDIA NIM não retornou "
+                "nenhuma choice."
+            )
+
+        message = (
+            choices[0]
+            .get(
+                "message",
+                {}
             )
         )
 
         raw_text = (
-            completion
-            .choices[0]
-            .message
-            .content
+            message.get(
+                "content"
+            )
         )
+
+        if not raw_text:
+
+            raise RuntimeError(
+                "NVIDIA Nemotron retornou "
+                "content vazio."
+            )
 
         audit = (
             _extract_json(
