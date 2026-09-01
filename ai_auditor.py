@@ -30,7 +30,7 @@
 #
 # Secret esperado:
 #
-# OPENAI_API_KEY
+# NVIDIA_API_KEY
 #
 # Variável opcional:
 #
@@ -143,7 +143,11 @@ AI_AUDIT_FILE = (
 # ============================================================
 
 DEFAULT_AI_MODEL = (
-    "gpt-5.6-terra"
+    "nvidia/nemotron-3-super-120b-a12b"
+)
+
+NVIDIA_BASE_URL = (
+    "https://integrate.api.nvidia.com/v1"
 )
 
 
@@ -314,11 +318,11 @@ def _dataframe_to_records(
 # SECRET
 # ============================================================
 
-def _get_openai_api_key():
+def _get_nvidia_api_key():
 
     api_key = (
         os.getenv(
-            "OPENAI_API_KEY",
+            "NVIDIA_API_KEY",
             ""
         )
         .strip()
@@ -327,8 +331,8 @@ def _get_openai_api_key():
     if not api_key:
 
         raise RuntimeError(
-            "OPENAI_API_KEY não encontrada. "
-            "Crie o secret OPENAI_API_KEY no GitHub."
+            "NVIDIA_API_KEY não encontrada. "
+            "Crie o secret NVIDIA_API_KEY no GitHub."
         )
 
     return api_key
@@ -1418,7 +1422,7 @@ def run_ai_audit(
     print("")
     print("=" * 72)
     print(
-        "SP500 CYCLE ATLAS — AUDITORIA INDEPENDENTE POR IA"
+        "SP500 CYCLE ATLAS — AUDITORIA NVIDIA NEMOTRON"
     )
     print("=" * 72)
 
@@ -1441,28 +1445,24 @@ def run_ai_audit(
     try:
 
         api_key = (
-            _get_openai_api_key()
+            _get_nvidia_api_key()
         )
 
         client = OpenAI(
-            api_key=api_key
+            base_url=NVIDIA_BASE_URL,
+            api_key=api_key,
         )
 
         print(
-            "→ Enviando estado do Atlas para auditoria..."
+            "→ Enviando estado do Atlas para NVIDIA Nemotron..."
         )
 
-        response = (
-            client.responses.create(
+        completion = (
+            client.chat.completions.create(
 
                 model=model,
 
-                reasoning={
-                    "effort":
-                        "medium"
-                },
-
-                input=[
+                messages=[
 
                     {
                         "role":
@@ -1490,11 +1490,29 @@ def run_ai_audit(
                             ),
                     },
                 ],
+
+                temperature=1.0,
+
+                top_p=0.95,
+
+                max_tokens=8192,
+
+                extra_body={
+                    "chat_template_kwargs": {
+                        "enable_thinking": True
+                    },
+                    "reasoning_budget": 4096,
+                },
+
+                stream=False,
             )
         )
 
         raw_text = (
-            response.output_text
+            completion
+            .choices[0]
+            .message
+            .content
         )
 
         audit = (
@@ -1519,7 +1537,7 @@ def run_ai_audit(
 
         print("")
         print(
-            "✅ Auditoria IA concluída."
+            "✅ Auditoria NVIDIA concluída."
         )
 
         print(
@@ -1552,7 +1570,7 @@ def run_ai_audit(
 
         print("")
         print(
-            "⚠️ Falha na auditoria por IA."
+            "⚠️ Falha na auditoria NVIDIA."
         )
 
         print(
