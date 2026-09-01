@@ -63,7 +63,22 @@ jobs:
           fi
 
       # ======================================================
-      # 5. VERIFICAR SECRETS DO E-MAIL
+      # 5. VERIFICAR SECRET NVIDIA
+      # ======================================================
+
+      - name: Check NVIDIA API Key
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+        run: |
+          if [ -z "$NVIDIA_API_KEY" ]; then
+            echo "⚠️ NVIDIA_API_KEY não foi carregada."
+            echo "⚠️ A auditoria IA usará o fail-safe e o Atlas continuará."
+          else
+            echo "✅ NVIDIA_API_KEY carregada corretamente."
+          fi
+
+      # ======================================================
+      # 6. VERIFICAR SECRETS DO E-MAIL
       # ======================================================
 
       - name: Check Email Secrets
@@ -90,19 +105,38 @@ jobs:
           echo "✅ Secrets de e-mail carregados corretamente."
 
       # ======================================================
-      # 6. EXECUTAR ATLAS
+      # 7. EXECUTAR ATLAS + AUDITORIA NVIDIA
       # ======================================================
 
       - name: Run SP500 Cycle Atlas
-        timeout-minutes: 10
+        timeout-minutes: 15
         env:
           PYTHONUNBUFFERED: "1"
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
         run: |
           python -u main.py
 
       # ======================================================
-      # 7. VERIFICAR PAINEL HTML
+      # 8. VERIFICAR AUDITORIA IA
+      # ======================================================
+
+      - name: Check AI Audit
+        if: always()
+        run: |
+          echo "=========================================="
+          echo "CHECK AI AUDIT"
+          echo "=========================================="
+
+          if [ -f data/ai_audit.json ]; then
+            echo "✅ ai_audit.json encontrado."
+            ls -lh data/ai_audit.json
+          else
+            echo "⚠️ ai_audit.json não encontrado."
+          fi
+
+      # ======================================================
+      # 9. VERIFICAR PAINEL HTML
       # ======================================================
 
       - name: Check HTML Report
@@ -120,7 +154,7 @@ jobs:
           fi
 
       # ======================================================
-      # 8. GERAR PDF INSTITUCIONAL
+      # 10. GERAR PDF INSTITUCIONAL
       # ======================================================
 
       - name: Generate PDF Report
@@ -131,7 +165,7 @@ jobs:
           python -u pdf_report.py
 
       # ======================================================
-      # 9. VERIFICAR PDF
+      # 11. VERIFICAR PDF
       # ======================================================
 
       - name: Check PDF Report
@@ -149,7 +183,7 @@ jobs:
           fi
 
       # ======================================================
-      # 10. ENVIAR PAINEL + PDF POR E-MAIL
+      # 12. ENVIAR PAINEL + PDF POR E-MAIL
       # ======================================================
 
       - name: Send SP500 Cycle Atlas Email
@@ -163,7 +197,7 @@ jobs:
           python -u email_report.py
 
       # ======================================================
-      # 11. MOSTRAR ESTADO ATUAL
+      # 13. MOSTRAR ESTADO ATUAL
       # ======================================================
 
       - name: Show current state
@@ -180,7 +214,7 @@ jobs:
           fi
 
       # ======================================================
-      # 12. MOSTRAR RELATÓRIO TXT
+      # 14. MOSTRAR RELATÓRIO TXT
       # ======================================================
 
       - name: Show report
@@ -197,7 +231,7 @@ jobs:
           fi
 
       # ======================================================
-      # 13. SALVAR RESULTADOS NO GITHUB
+      # 15. SALVAR RESULTADOS NO GITHUB
       # ======================================================
 
       - name: Commit updated data
@@ -210,6 +244,7 @@ jobs:
           git add data/cycle_history.csv
           git add data/current_report.txt
           git add data/current_report.html
+          git add data/ai_audit.json
           git add reports/relatorio_sp500_cycle_atlas.pdf
 
           if git diff --cached --quiet; then
