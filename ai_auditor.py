@@ -286,6 +286,38 @@ def _json_safe(value):
     return value
 
 
+def _sanitize_ai_text(value):
+    """
+    Normaliza apenas texto produzido pela IA para evitar
+    caracteres problemáticos no PDF, sem alterar números,
+    códigos, regras ou estrutura do JSON.
+    """
+
+    if isinstance(value, str):
+
+        return (
+            value
+            .replace("■", "-")
+            .replace("–", "-")
+        )
+
+    if isinstance(value, dict):
+
+        return {
+            key: _sanitize_ai_text(item)
+            for key, item in value.items()
+        }
+
+    if isinstance(value, list):
+
+        return [
+            _sanitize_ai_text(item)
+            for item in value
+        ]
+
+    return value
+
+
 def _dataframe_to_records(
     dataframe,
 ):
@@ -790,6 +822,21 @@ IDIOMA OBRIGATÓRIO DA RESPOSTA:
 - Ao mencionar um código técnico em uma frase, toda a explicação ao redor dele deve permanecer em português do Brasil.
 - Use caracteres Unicode normais do português. Para intervalos, escreva por extenso, por exemplo: "1 a 2 meses". NÃO use símbolos especiais como "■" para representar hífen, travessão ou intervalo.
 - Evite anglicismos quando houver equivalente técnico claro em português.
+- Em texto narrativo, prefira "S&P 500" em vez de "equity", "reserva" em vez de "reserve" e "utilização da reserva" em vez de "deployment/deployada". Preserve os nomes técnicos somente quando forem campos, códigos ou valores oficiais do Atlas.
+
+LIMITES ADICIONAIS DE GOVERNANÇA:
+
+- A auditoria NÃO deve criar cenários de mercado futuros.
+- NÃO diga que um indicador "pode causar correção", "pode antecipar queda", "pode levar a crash" ou formule equivalentes preditivos.
+- NÃO projete qual será o próximo regime do Atlas.
+- NÃO diga que o regime "pode mudar para ORANGE", "pode mudar para RED" ou qualquer outro regime futuro com base em hipóteses.
+- Quando uma regra condicional estiver explicitamente presente nos dados fornecidos, descreva apenas a REGRA, por exemplo: "a política fornecida estabelece ativação da reserva a partir do drawdown definido". Não transforme a regra em previsão.
+- Os alertas devem se limitar a: integridade/frescor dos dados, inconsistência de regras, divergência entre estado observado e política, contradições materiais entre evidências ou necessidade de revisão humana.
+- Os pontos de revisão humana devem recomendar revisão de dados, regras, metadados ou coerência do modelo. NÃO devem recomendar compra, venda, redução de posição, aumento de posição ou qualquer ação de mercado fora da política do Atlas.
+- Ao avaliar valuation/CAPE, preserve a classificação oficial já produzida pelo engine em current_state. Não substitua essa classificação por um novo rótulo criado pela IA.
+- Se um valor numérico também cruzar algum threshold fornecido, trate isso apenas como verificação de consistência da regra, sem criar um novo regime ou sobrescrever o rótulo do engine.
+- Não use linguagem causal ou probabilística que não esteja explicitamente sustentada pelos dados fornecidos.
+- Não use conhecimento externo para complementar, atualizar ou reinterpretar os dados do Atlas.
 
 Sua função NÃO é analisar o mercado livremente.
 Sua função NÃO é substituir o motor quantitativo.
@@ -927,6 +974,12 @@ Nunca use score acima de 100 ou abaixo de 0.
 
 O campo final_opinion deve ser objetivo,
 profissional e limitado a aproximadamente 120 palavras.
+
+No final_opinion:
+- conclua somente sobre consistência, integridade, aderência às regras e necessidade de revisão;
+- não faça previsão de mercado;
+- não antecipe mudança futura de regime;
+- não recomende ação de investimento fora da política já calculada pelo Atlas.
 
 Não repita todo o relatório.
 Não produza análise genérica.
@@ -1692,6 +1745,12 @@ def run_ai_audit(
             validate_ai_audit(
                 audit=audit,
                 current_state=current_state,
+            )
+        )
+
+        audit = (
+            _sanitize_ai_text(
+                audit
             )
         )
 
