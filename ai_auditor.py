@@ -299,6 +299,8 @@ def _sanitize_ai_text(value):
             value
             .replace("■", "-")
             .replace("–", "-")
+            .replace("deteção", "detecção")
+            .replace("Deteção", "Detecção")
         )
 
     if isinstance(value, dict):
@@ -822,7 +824,15 @@ IDIOMA OBRIGATÓRIO DA RESPOSTA:
 - Ao mencionar um código técnico em uma frase, toda a explicação ao redor dele deve permanecer em português do Brasil.
 - Use caracteres Unicode normais do português. Para intervalos, escreva por extenso, por exemplo: "1 a 2 meses". NÃO use símbolos especiais como "■" para representar hífen, travessão ou intervalo.
 - Evite anglicismos quando houver equivalente técnico claro em português.
-- Em texto narrativo, prefira "S&P 500" em vez de "equity", "reserva" em vez de "reserve" e "utilização da reserva" em vez de "deployment/deployada". Preserve os nomes técnicos somente quando forem campos, códigos ou valores oficiais do Atlas.
+- Em texto narrativo, use português brasileiro técnico e natural.
+- Substitua anglicismos narrativos por equivalentes em português sempre que possível:
+  * "equity" -> "S&P 500" ou "parcela destinada ao S&P 500";
+  * "reserve" -> "reserva";
+  * "threshold" -> "limiar";
+  * "feed/feeds" -> "fonte/fontes de dados";
+  * "deployment/deployada" -> "utilização da reserva".
+- Preserve termos em inglês somente quando forem códigos, nomes oficiais de campos, estados ou valores do Atlas, como YELLOW_EXPENSIVE_BULL, HOLD, BULL, STABLE, NOT_ACTIVE.
+- Use exclusivamente ortografia do português brasileiro, por exemplo "detecção", nunca "deteção".
 
 LIMITES ADICIONAIS DE GOVERNANÇA:
 
@@ -836,6 +846,10 @@ LIMITES ADICIONAIS DE GOVERNANÇA:
 - Ao avaliar valuation/CAPE, preserve a classificação oficial já produzida pelo engine em current_state. Não substitua essa classificação por um novo rótulo criado pela IA.
 - Se um valor numérico também cruzar algum threshold fornecido, trate isso apenas como verificação de consistência da regra, sem criar um novo regime ou sobrescrever o rótulo do engine.
 - Não use linguagem causal ou probabilística que não esteja explicitamente sustentada pelos dados fornecidos.
+- Não diga que uma defasagem "pode impedir", "pode mascarar", "pode antecipar" ou "pode causar" qualquer mudança de mercado.
+- Ao comentar defasagem temporal, descreva de forma factual: "reduz a atualidade temporal das evidências disponíveis" ou equivalente.
+- Não classifique uma série como "atualizada" quando o próprio freshness_audit indicar defasagem.
+- Quando houver defasagem, prefira expressões como "internamente consistente com os dados disponíveis".
 - Não use conhecimento externo para complementar, atualizar ou reinterpretar os dados do Atlas.
 
 Sua função NÃO é analisar o mercado livremente.
