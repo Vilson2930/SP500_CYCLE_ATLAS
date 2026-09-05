@@ -1,62 +1,58 @@
 {
-  "generated_at": "2026-09-04T15:57:43.369341",
+  "generated_at": "2026-09-05T14:48:24.278227",
   "model": "nvidia/nemotron-3-super-120b-a12b",
   "audit": {
     "audit_status": "CONFIRMED_WITH_WARNINGS",
-    "engine_consistency_score": 96.0,
-    "data_quality_score": 78.0,
+    "engine_consistency_score": 95.0,
+    "data_quality_score": 80.0,
     "ai_dissent": false,
     "regime_audit": {
       "engine_regime": "YELLOW_EXPENSIVE_BULL",
-      "assessment": "O regime operacional está coerente com as evidências de valuation, momentum, drawdown, trabalho, produção industrial, inflação, política monetária e curva de juros.",
-      "reason": "CAPE extremamente alto (42,17) combinado com retorno de 12 meses forte (0,153) indica um cenário de bull market caro, consistente com YELLOW_EXPENSIVE_BULL."
+      "assessment": "O regime operacional indicado pelo engine está alinhado com a política de contribuição e com os indicadores de valuation, momentum, drawdown, trabalho, produção industrial, inflação, política monetária e curva de juros fornecidos.",
+      "reason": "CAPE extremamente alto (41,41) combinado com retorno de 12 meses forte (+15,4%) e drawdown zero resulta na alocação de 60% equity / 40% reserve, conforme a política do regime YELLOW_EXPENSIVE_BULL."
     },
     "data_integrity": {
-      "assessment": "Há defasagens temporais em várias séries, mas nenhuma série está totalmente ausente.",
+      "assessment": "A maioria das séries essenciais está atualizada, mas algumas apresentam defasagem de 1 a 2 meses e campos de observações ausentes (null).",
       "issues": [
-        "CAPE: último valor de 2026-08-01, defasagem de 1 mês.",
-        "Fed Funds: último valor de 2026-08-01, defasagem de 1 mês.",
-        "Treasury 2Y: último valor de 2026-08-01, defasagem de 1 mês.",
-        "Treasury 10Y: último valor de 2026-08-01, defasagem de 1 mês.",
-        "CPI: último valor de 2026-07-01, defasagem de 2 meses.",
-        "Unemployment: último valor de 2026-08-01, defasagem de 1 mês.",
-        "Sahm: último valor de 2026-08-01, defasagem de 1 mês.",
-        "Industrial Production: último valor de 2026-07-01, defasagem de 2 meses."
+        "Fed Funds com lag de 1 mês (último valor em 2026-08-01).",
+        "Treasury 2Y e 10Y com lag de 1 mês (último valor em 2026-08-01).",
+        "CPI com lag de 2 meses (último valor em 2026-07-01).",
+        "Unemployment com lag de 1 mês (último valor em 2026-08-01).",
+        "Sahm indicator com lag de 1 mês (último valor em 2026-08-01).",
+        "Industrial Production com lag de 2 meses (último valor em 2026-07-01).",
+        "Campo 'observations' nulo para várias séries, limitando a verificação de contagem de pontos."
       ]
     },
     "rule_consistency": {
-      "assessment": "As classificações de valuation, momentum, drawdown, laboral, industrial, inflação, monetária e curva de juros estão em conformidade com as regras do Atlas para o regime YELLOW_EXPENSIVE_BULL.",
+      "assessment": "As classificações de cada indicador (valuation_regime, momentum_regime, drawdown_regime, etc.) obedecem aos thresholds definidos nas regras do Atlas.",
       "issues": []
     },
     "policy_consistency": {
-      "assessment": "As contribuições de equity e reserve, bem como a posição existente, correspondem exatamente à política definida para YELLOW_EXPENSIVE_BULL.",
+      "assessment": "As frações de novo aporte (equity 0,6; reserve 0,4) e a posição existente (HOLD) correspondem exatamente à política prescrita para o regime YELLOW_EXPENSIVE_BULL.",
       "issues": []
     },
     "reserve_consistency": {
-      "assessment": "A reserva está em estágio 0, com status NOT_ACTIVE, o que é esperado dado que o drawdown está em 0,0 (acima do limiar de ativação -0,15).",
+      "assessment": "A reserva está no estágio 0, com fração de implantação zero e status NOT_ACTIVE, conforme esperado dado que o drawdown (0,0) não ultrapassa os níveis de ativação (-0,15, -0,20, -0,30, -0,35).",
       "issues": []
     },
     "cross_evidence": {
-      "assessment": "Não há contradições materiais entre as dimensões de evidencia; os sinais de risco e construtivos coexistem conforme esperado em um bull market caro.",
+      "assessment": "Não há contradições materiais entre os indicadores de valuation, momentum, drawdown, trabalho, produção industrial, inflação, política monetária e curva de juros que invalidem o regime YELLOW_EXPENSIVE_BULL.",
       "contradictions": []
     },
     "warnings": [
-      "CAPE com defasagem de 1 mês reduz a atualidade temporal da evidência de valuation.",
-      "Fed Funds com defasagem de 1 mês reduz a atualidade temporal da evidência de política monetária.",
-      "Treasury 2Y e 10Y com defasagem de 1 mês afetam a precisão da métrica de curva de juros.",
-      "CPI com defasagem de 2 meses pode atrasar a detecção de mudanças na inflação.",
-      "Unemployment com defasagem de 1 mês reduz a atualidade temporal do indicador de mercado de trabalho.",
-      "Sahm com defasagem de 1 mês pode atrasar sinais de recessão.",
-      "Industrial Production com defasagem de 2 meses reduz a atualidade temporal da evidência de atividade industrial."
+      "Defasagem de 1 a 2 meses em séries macroeconômicas chave (CPI, produção industrial, Fed Funds, Treasuries) reduz a atualidade temporal das evidências disponíveis.",
+      "Alguns campos de 'observations' estão ausentes (null), o que impede a verificação da contagem de pontos dessas séries."
     ],
     "strengths": [
-      "Deterministic policy check aprovado: equity, reserve e posição existente correspondem exatamente ao esperado para YELLOW_EXPENSIVE_BULL.",
-      "Todos os regimes subjacentes (valuation, momentum, drawdown, laboral, industrial, inflação, monetária, curva de juros) estão internamente consistentes.",
-      "Status da reserva (NOT_ACTIVE) está alinhado ao drawdown atual (0,0) e às regras de implantação."
+      "Dados do S&P 500 e do CAPE estão totalmente atualizados (lag 0 meses).",
+      "O deterministic_policy_check confirma que equity, reserve e existing_position observados coincidem exatamente com os valores esperados para o regime indicado.",
+      "Todos os indicadores utilizados para a classificação do regime estão dentro dos thresholds estabelecidos, demonstrando consistência rule-based."
     ],
     "manual_review_points": [
-      "Revisar a frequência de atualização das séries com defasagem (CAPE, Fed Funds, Treasuries, CPI, Unemployment, Sahm, Industrial Production) para melhorar o frescor dos dados usados pelo Atlas."
+      "Revisar a defasagem dos dados de CPI e produção industrial para avaliar se a inflação reacelerando e a expansão industrial podem estar desatualizados.",
+      "Considerar a atualização mais frequente das séries de Fed Funds e Treasuries para reduzir o risco de decisões baseadas em dados de um mês atrás.",
+      "Avaliar a necessidade de incluir um indicador de observações não nulo nas auditorias de frescor para melhor rastreamento da integridade dos dados."
     ],
-    "final_opinion": "A auditoria confirma que o regime operacional YELLOW_EXPENSIVE_BULL produzido pelo SP500 CYCLE ATLAS é inteiramente coerente com as regras e evidências fornecidas. Não foram identificadas contradições materiais entre as dimensões de valuation, momentum, drawdown, trabalho, produção industrial, inflação, política monetária e curva de juros. O principal ponto de atenção consiste nas defasagens temporais observadas em várias séries de entrada, que reduzem a atualidade temporal das evidências, embora não afetem a consistência interna do resultado. Recomenda-se uma revisão humana focada na melhoria da frequência de atualização dos dados defasados para elevar a qualidade da informação utilizada pelo modelo."
+    "final_opinion": "A execução do SP500 CYCLE ATLAS para a data de 2026-09-01 é internamente consistente. O regime operacional YELLOW_EXPENSIVE_BULL e as alocações de equity e reserve estão em plena conformidade com as regras e políticas do sistema. Os únicos pontos de atenção são as defasagens de 1 a 2 meses em algumas séries macroeconômicas e a ausência de contagem de observações em vários feeds, o que justifica um status de CONFIRMED_WITH_WARNINGS e sugere revisão dos fontes de dados para melhorar a frescor. Não há necessidade de alterar o regime ou a política de contribuição com base nas evidências fornecidas."
   }
 }
