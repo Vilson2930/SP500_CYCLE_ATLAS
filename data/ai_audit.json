@@ -1,58 +1,59 @@
 {
-  "generated_at": "2026-09-17T17:29:46.371587",
+  "generated_at": "2026-09-17T17:38:11.230604",
   "model": "nvidia/nemotron-3-super-120b-a12b",
   "audit": {
     "audit_status": "CONFIRMED_WITH_WARNINGS",
-    "engine_consistency_score": 95.0,
-    "data_quality_score": 85.0,
+    "engine_consistency_score": 92.0,
+    "data_quality_score": 78.0,
     "ai_dissent": false,
     "regime_audit": {
       "engine_regime": "YELLOW_EXPENSIVE_BULL",
-      "assessment": "O regime operacional YELLOW_EXPENSIVE_BULL está coerente com as evidências de valuation extrema, momentum positivo, drawdown leve, política monetária expansionista e atividade industrial em expansão.",
-      "reason": "Segundo as regras, YELLOW_EXPENSIVE_BULL corresponde a equity 0,6 e reserve 0,4, o que coincide com os valores observados. Os indicadores de valuation (CAPE > ultra_extreme), momentum (return_12m próximo do forte), drawdown acima do limiar de alerta (-0,007 > -0,1), monetary regime EASING e industrial regime EXPANSION suportam a classificação de mercado caro em fase de alta."
+      "assessment": "O regime operacional YELLOW_EXPENSIVE_BULL está alinhado com as evidências de valuation extrema, momentum positivo, drawdown normal e demais indicadores macroeconômicos.",
+      "reason": "CAPE acima do limiar ultra_extreme (40.52 > 40), retorno de 12 meses positivo (0,141) e drawdown acima do limiar de warning (-0,006 > -0,1) sustentam a classificação de mercado caro com tendência de alta, que corresponde ao regime YELLOW_EXPENSIVE_BULL segundo as regras do Atlas."
     },
     "data_integrity": {
-      "assessment": "Os principais preços e indicadores estão presentes, porém várias séries apresentam defasagem temporal de 1 a 2 meses, o que reduz a atualidade temporal das evidências disponíveis.",
+      "assessment": "Os dados de preço do S&P 500 e do CAPE estão atualizados (lag 0 meses). As demais séries apresentam defasagem de 1 a 2 meses, o que reduz a atualidade temporal das evidências, mas nenhum campo está marcado como UNKNOWN.",
       "issues": [
-        "Série Fed Funds com lag_months = 1 (dados de 2026-08-01).",
-        "Série Treasury 2Y com lag_months = 1 (dados de 2026-08-01).",
-        "Série Treasury 10Y com lag_months = 1 (dados de 2026-08-01).",
-        "Série CPI com lag_months = 1 (dados de 2026-08-01).",
-        "Série Unemployment com lag_months = 1 (dados de 2026-08-01).",
-        "Série Sahm com lag_months = 1 (dados de 2026-08-01).",
-        "Série Industrial Production com lag_months = 2 (dados de 2026-07-01)."
+        "Fed Funds: lag 1 mês",
+        "Treasury 2Y: lag 1 mês",
+        "Treasury 10Y: lag 1 mês",
+        "CPI: lag 1 mês",
+        "Desemprego: lag 1 mês",
+        "Sahm Indicator: lag 1 mês",
+        "Produção Industrial: lag 2 meses"
       ]
     },
     "rule_consistency": {
-      "assessment": "Nenhuma contradição material foi encontrada entre as regras do Atlas e os valores observados.",
+      "assessment": "A classificação do regime operacional obedece às regras de valuation, momentum e drawdown fornecidas no Atlas.",
       "issues": []
     },
     "policy_consistency": {
-      "assessment": "A contribuição de equity (0,6) e reserve (0,4) está em total conformidade com a política definida para o regime YELLOW_EXPENSIVE_BULL.",
+      "assessment": "As contribuições de equity (0,6) e reserve (0,4) e a posição existente (HOLD) correspondem exatamente à política definida para o regime YELLOW_EXPENSIVE_BULL.",
       "issues": []
     },
     "reserve_consistency": {
-      "assessment": "A reserva está no estágio 0, com fração de déployo zero e status NOT_ACTIVE, o que está correto pois o drawdown (-0,007) não ultrapassa o limiar de ativação (-0,15).",
+      "assessment": "A reserva permanece no estágio 0, com status NOT_ACTIVE, pois o drawdown (-0,006) está acima do limiar de ativação (-0,15) e o regime atual não é RED_STRUCTURAL_STRESS, regime que bloqueia a reserva.",
       "issues": []
     },
     "cross_evidence": {
-      "assessment": "As evidências de valuation extrema, momentum positivo, condições de trabalho estáveis, produção industrial em expansão, inflação em reaceleração, política monetária expansionista e curva de juros levemente positiva são compatíveis com o regime de mercado caro em alta (YELLOW_EXPENSIVE_BULL).",
+      "assessment": "Não há contradições materiais entre as dimensões de valuation, momentum, drawdown, trabalho, produção industrial, inflação, política monetária e curva de juros; todas apontam para um ambiente de alta com valuation esticada.",
       "contradictions": []
     },
     "warnings": [
-      "Defasagem de 1 mês nos dados de Fed Funds, Treasuries, CPI, Desemprego e Sahm pode impedir a captura de movimentos recentes de política monetária e inflação.",
-      "Defasagem de 2 meses na Produção Industrial pode obscurecer mudanças recentes no ciclo produtivo."
+      "Defasagem de 1 a 2 meses em várias séries macroeconômicas pode reduzir a precisão da avaliação em tempo real.",
+      "A dependência de dados com lag pode mascarar mudanças recentes nos indicadores de inflação, atividade industrial e mercado de trabalho."
     ],
     "strengths": [
-      "Verificação determinística da política confirma equity, reserve e posição existentes conforme esperado.",
-      "Status da reserva está coerente com o drawdown atual e as regras de deployment.",
-      "Nenhum campo crítico está marcado como UNKNOWN ou ausente."
+      "Altíssima consistência entre o regime operacional indicado pelo engine e as regras do Atlas.",
+      "Conformidade total da política de contribuição com o regime YELLOW_EXPENSIVE_BULL.",
+      "Verificação deterministic_policy_check válida.",
+      "Ausência de campos UNKNOWN ou dados ausentes críticos."
     ],
     "manual_review_points": [
-      "Revisar se a defasagem de 1-2 meses nos indicadores macroeconômicos poderia justificar uma reavaliação do regime caso os dados mais recentes mostrem deterioração adicional.",
-      "Confirmar a interpretação do threshold ultra_extreme de CAPE (40,0) em relação ao regime YELLOW_EXPENSIVE_BULL, já que o valor atual (40,52) está ligeiramente acima desse limiar.",
-      "Avaliar se a combinação de inflação em reaceleração com política monetária expansionista requer ajuste nas regras de risco interno do Atlas (embora não esteja explicitamente definido)."
+      "Revisar a frequência de atualização das fontes de dados macroeconômicos para reduzir o lag Observado.",
+      "Considerar a inclusão de um indicador de frescor compuesto no audit para sinalizar quando o conjunto de dados estiver desatualizado além de um limiar aceitável.",
+      "Avaliar se o limiar de deployment da reserva deveria ser reavaliado diante de eventuais atrasos na divulgação de drawdown."
     ],
-    "final_opinion": "A execução do SP500 CYCLE ATLAS para a data de 2026-09-01 está internamente consistente. O regime operacional YELLOW_EXPENSIVE_BULL está alinhado com as evidências de valuation elevada, momentum positivo, drawdown reduzido, política monetária expansionista e atividade industrial em expansão. A política de contribuição e o status da reserva obedecem exatamente às regras definidas. Principais ressalvas referem-se à defasagem temporal de 1 a 2 meses em várias séries macroeconômicas (Fed Funds, Treasuries, CPI, desemprego, Sahm e produção industrial), o que reduz a atualidade das informações utilizadas. Não há inconsistências material entre regras, evidências ou conclusões do motor, portanto o auditor não vê necessidade de alterar o regime, mas recomenda a atualização dos dados atrasados e uma revisão dos limites de valuation para garantir que o tratamento de CAPE ultra_extreme continue apropriado."
+    "final_opinion": "A execução do SP500 CYCLE ATLAS para a data de 2026-09-01 está internamente consistente. O regime operacional YELLOW_EXPENSIVE_BULL respeita as regras de valuation, momentum e drawdown, e a política de contribuição está correta. Os principais alertas referem-se à defasagem de 1 a 2 meses em várias séries macroeconômicas, o que diminui a atualidade das evidências, mas não gera inconsistência material suficiente para alterar o status do regime. Recomenda‑se revisão das fontes de dados para melhorar a frescor, sem necessidade de intervenção imediata na alocação."
   }
 }
