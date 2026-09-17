@@ -38,6 +38,10 @@ from ai_auditor import (
     run_ai_audit,
 )
 
+from agent_export import (
+    export_agent_output,
+)
+
 from settings import (
     PROJECT_NAME,
     VERSION,
@@ -324,6 +328,25 @@ def main():
     print(
         f"Divergência da IA          : "
         f"{ai_audit.get('ai_dissent')}"
+    )
+
+    # ========================================================
+    # 5B. EXPORTAÇÃO PARA INVESTMENT CIO AGENT
+    # ========================================================
+
+    print("")
+    print(REPORT_SEPARATOR)
+    print("EXPORTAÇÃO PARA INVESTMENT CIO AGENT")
+    print(REPORT_SEPARATOR)
+
+    agent_output_path = export_agent_output(
+        current_state=current_state,
+        ai_audit=ai_audit,
+    )
+
+    print(
+        f"Arquivo CIO Agent          : "
+        f"{agent_output_path}"
     )
 
     # ========================================================
