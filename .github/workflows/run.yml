@@ -231,7 +231,37 @@ jobs:
           fi
 
       # ======================================================
-      # 15. SALVAR RESULTADOS NO GITHUB
+      # 15. VERIFICAR SAÍDA PARA INVESTMENT CIO AGENT
+      # ======================================================
+
+      - name: Check Investment CIO Agent Output
+        run: |
+          echo "=========================================="
+          echo "INVESTMENT CIO AGENT OUTPUT"
+          echo "=========================================="
+
+          if [ -f outputs/agent_output_raw.json ]; then
+            echo "✅ agent_output_raw.json encontrado."
+            ls -lh outputs/agent_output_raw.json
+          else
+            echo "❌ agent_output_raw.json não encontrado."
+            exit 1
+          fi
+
+      # ======================================================
+      # 16. PUBLICAR SAÍDA PARA INVESTMENT CIO AGENT
+      # ======================================================
+
+      - name: Upload Investment CIO Agent Output
+        uses: actions/upload-artifact@v4
+        with:
+          name: sp500-cycle-atlas-agent-output
+          path: outputs/agent_output_raw.json
+          if-no-files-found: error
+          retention-days: 30
+
+      # ======================================================
+      # 17. SALVAR RESULTADOS NO GITHUB
       # ======================================================
 
       - name: Commit updated data
