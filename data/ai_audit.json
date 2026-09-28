@@ -1,53 +1,63 @@
 {
-  "generated_at": "2026-09-27T16:37:16.556513",
+  "generated_at": "2026-09-28T19:24:16.116308",
   "model": "nvidia/nemotron-3-super-120b-a12b",
   "audit": {
     "audit_status": "CONFIRMED_WITH_WARNINGS",
-    "engine_consistency_score": 96.0,
-    "data_quality_score": 82.0,
+    "engine_consistency_score": 90.0,
+    "data_quality_score": 78.0,
     "ai_dissent": false,
     "regime_audit": {
       "engine_regime": "YELLOW_EXPENSIVE_BULL",
-      "assessment": "O regime operacional está alinhado com as evidências de valuation elevada, momentum forte e ausência de drawdown significativo.",
-      "reason": "CAPE em nível extremo (41,48) combined with return_12m acima do limiar de forte momentum (0,157) e drawdown zero suportam a classificação de YELLOW_EXPENSIVE_BULL segundo a lógica do Atlas."
+      "assessment": "O regime operacional está em conformidade com a política de contribuição e as evidências de valuation, momentum e drawdown.",
+      "reason": "Equity 0,6, reserve 0,4 e existing_position HOLD correspondem exatamente ao definido para YELLOW_EXPENSIVE_BULL; drawdown zero, retorno de 12 meses positivo, CAPE extremo indicam bull market caro."
     },
     "data_integrity": {
-      "assessment": "Dados principais de preço e valuation estão atualizados; várias séries macroeconômicas apresentam defasagem de um mês.",
+      "assessment": "Dados de preço e CAPE atualizados; séries macroeconômicas com defasagem de um mês, reduzindo atualidade temporal.",
       "issues": [
-        "Fed Funds, Treasury 2Y, Treasury 10Y, CPI, Desemprego, Sahm e Produção Industrial exibem lag_months = 1.",
-        "Observações nulas para algumas séries não afetam valores disponíveis, mas indicam possível lacuna de atualização."
+        "Fed Funds: lag_months 1",
+        "Treasury 2Y: lag_months 1",
+        "Treasury 10Y: lag_months 1",
+        "CPI: lag_months 1",
+        "Unemployment: lag_months 1",
+        "Sahm: lag_months 1",
+        "Industrial Production: lag_months 1"
       ]
     },
     "rule_consistency": {
-      "assessment": "Classificações de regimes de valuation, momentum, drawdown, trabalho, indústria, inflação, monetária e curva de juros obedecem aos limites definidos nas regras.",
+      "assessment": "Classificação e contribuições obedecem às regras do Atlas.",
       "issues": []
     },
     "policy_consistency": {
-      "assessment": "As contribuições de equity (0,6) e reserve (0,4) bem como a posição existente (HOLD) correspondem exatamente à política do regime YELLOW_EXPENSIVE_BULL.",
+      "assessment": "Equity, reserve e existing_position seguem a contribution_policy para YELLOW_EXPENSIVE_BULL.",
       "issues": []
     },
     "reserve_consistency": {
-      "assessment": "Reserva permanece inativa, conforme esperado, pois o drawdown está acima do limiar de ativação (-0,15).",
+      "assessment": "Reserva não acionada, pois drawdown acima dos limiares de deploy; status correto.",
       "issues": []
     },
     "cross_evidence": {
-      "assessment": "Não há contradições materiais entre as dimensões de valuation, momentum, drawdown, trabalho, indústria, inflação, política monetária e curva de juros; o conjunto apoia o cenário de mercado caro em fase de alta.",
-      "contradictions": []
+      "assessment": "De modo geral, evidências coerentes com regime de bull caro; porém há tensões entre inflação reacelerando e política monetária flexível, além de risco estrutural elevado sem transição para regime de estresse.",
+      "contradictions": [
+        "Inflation regime REACCELERATING (risco) enquanto monetary regime EASING (construtivo) pode indicar divergência entre pressão de preços e estímulo.",
+        "Structural risk HIGH indicado, mas operational regime permanece YELLOW_EXPENSIVE_BULL, não RED_STRUCTURAL_STRESS.",
+        "CAPE percentile 0,983 está próximo do limiar ultra extremo (0,99) mas ainda não ultrapassado; valuation_regime EXTREME_TOP_5 sugere extremo porém não o mais extremo.",
+        "Bull age 4,0 anos e retorno acumulado >1,14 indicam maturação avançada do bull, enquanto drawdown zero sugere ausência de correção recente."
+      ]
     },
     "warnings": [
-      "Séries macroeconômicas com defasagem de 1 mês podem reduzir a atualidade da avaliação de condições de trabalho, inflação e atividade industrial.",
-      "Valuation em nível extremo aumenta a sensibilidade do mercado a choques adversos, embora não gere sinal de venda segundo as regras do Atlas."
+      "Defasagem de um mês em diversas séries macroeconômicas reduz a atualidade das avaliações de inflação, produção industrial e mercado de trabalho.",
+      "Risco estrutural elevado sem acionamento de regime de estresse pode requerer monitoramento mais próximo."
     ],
     "strengths": [
-      "Política de contribuição seguida exatamente conforme o regime determinado.",
-      "Reserva não acionada adequadamente diante da ausência de drawdown significativo.",
-      "Indicadores de tendência (BULL) e trabalho (STABLE) apresentam sinais construtivos e fortes.",
-      "Coerência entre regimes de inflação (REACCELERATING) e política monetária (EASING) conforme as regras de transição."
+      "Série de preço do S&P 500 e CAPE totalmente atualizadas (lag_months 0).",
+      "Verificação da política de contribuição confirma equity 0,6 e reserve 0,4 conforme esperado para YELLOW_EXPENSIVE_BULL.",
+      "Reserva permanece em estado NOT_ACTIVE, adequada ao drawdown nulo."
     ],
     "manual_review_points": [
-      "Atualizar as fontes de dados macroeconômicos (Fed Funds, Treasuries, CPI, desemprego, Sahm, Produção Industrial) para eliminar a defasagem de um mês.",
-      "Revisar periodicamente a sensibilidade do modelo a extremos de CAPE para garantir que o regime YELLOW_EXPENSIVE_BULL continue adequado diante de novas leituras de valuation."
+      "Revisar a frequência de atualização das fontes macroeconômicas para reduzir defasagem temporal.",
+      "Avaliar se o critério de transição para RED_STRUCTURAL_STRESS deve ser reconsiderado diante de risco estrutural elevado.",
+      "Monitorar a proximidade do CAPE ao limiar ultra extremo (percentile 0,99) para possível ajuste de sensibilidade do regime de valuation."
     ],
-    "final_opinion": "A execução do SP500 CYCLE ATLAS para a data de 2026-09-01 está internamente consistente: o regime operacional YELLOW_EXPENSIVE_BULL corresponde às evidences de valuation elevada, momentum forte e ausencia de drawdown, e as regras de contribuição e reserva são respeitadas. Os dados de preço e CAPE estão atualizados, porém várias séries macroeconômicas apresentam defasagem de um mês, o que reduz ligeiramente a frescor da análise. Não foram identificadas contradições entre as dimensões de valuation, momentum, trabalho, indústria, inflação, política monetária e curva de juros. Assim, a auditoria classifica o resultado como CONFIRMED_WITH_WARNINGS, recomendando revisão das fontes de dados atrasadas e monitoramento contínuo dos extremos de valuation."
+    "final_opinion": "A execução do SP500 CYCLE ATLAS apresenta consistência interna entre o regime operacional YELLOW_EXPENSIVE_BULL, as regras de contribuição e a política de reserva. Os dados de preço e CAPE estão atualizados, porém várias séries macroeconômicas exibem defasagem de um mês, o que diminui a atualidade das avaliações de inflação, produção industrial e mercado de trabalho. Não há divergências materiais que invalidem o regime, embora existam tensões entre inflação reacelerando e política monetária flexível, bem como risco estrutural elevado sem transição para regime de estresse. Esses pontos merecem revisão humana para garantir robustez do modelo, mas não alteram a classificação atual do Atlas."
   }
 }
