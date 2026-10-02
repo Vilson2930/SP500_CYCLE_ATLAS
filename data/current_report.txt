@@ -3,7 +3,7 @@ S&P 500 HISTORICAL CYCLE ATLAS
 ========================================================================
 
 Data: 2026-10-01
-S&P 500: 7,655.20
+S&P 500: 7,715.96
 
 DIAGNÓSTICO DO CICLO
 ------------------------------------------------------------------------
@@ -29,15 +29,15 @@ Momentum          : POSITIVE | FAVORÁVEL | O momentum permanece positivo.
 Trabalho          : STABLE | FAVORÁVEL | O mercado de trabalho permanece estável.
 Indústria         : EXPANSION | FAVORÁVEL | A produção industrial está em expansão.
 Inflação          : REACCELERATING | ATENÇÃO | A inflação voltou a acelerar e pode limitar a flexibilização monetária.
-Política monetária: EASING | FAVORÁVEL | A política monetária está em flexibilização.
+Política monetária: NEUTRAL | NEUTRO | Estado atual: NEUTRAL.
 Curva de juros    : FLAT_POSITIVE | NEUTRO | A curva está positiva, porém ainda pouco inclinada.
 
 MERCADO
 ------------------------------------------------------------------------
-Drawdown         : -0.40%
-Momentum 12m     : 11.91%
+Drawdown         : 0.00%
+Momentum 12m     : 12.80%
 Idade do bull    : 4.08 anos
-Retorno do bull  : 113.50%
+Retorno do bull  : 115.19%
 
 VALUATION
 ------------------------------------------------------------------------
@@ -47,13 +47,13 @@ Classificação    : EXTREME_TOP_5
 
 MACRO & MONETÁRIO
 ------------------------------------------------------------------------
-Fed Funds        : 3.63%
-Fed Δ12m         : -0.70 p.p.
-Curva 10Y-2Y     : +0.46 p.p.
+Fed Funds        : 3.75%
+Fed Δ12m         : -0.47 p.p.
+Curva 10Y-2Y     : +0.34 p.p.
 Inflação YoY     : 3.35%
 Inflação Δ6m     : +0.92 p.p.
-Desemprego       : 4.10%
-Sahm             : -0.07
+Desemprego       : 4.20%
+Sahm             : 0.00
 Produção ind. YoY: +1.42%
 
 CLASSIFICAÇÕES
@@ -64,7 +64,7 @@ Drawdown        : NORMAL
 Labor           : STABLE
 Industrial      : EXPANSION
 Inflation       : REACCELERATING
-Monetary        : EASING
+Monetary        : NEUTRAL
 Yield curve     : FLAT_POSITIVE
 
 EVIDENCE SCORECARD
@@ -75,7 +75,7 @@ EVIDENCE SCORECARD
 ✅ LABOR | STABLE | STRONG
 ✅ INDUSTRIAL | EXPANSION | MODERATE
 ⚠️ INFLATION | REACCELERATING | MODERATE
-✅ MONETARY | EASING | MODERATE
+✅ MONETARY | NEUTRAL | MODERATE
 • YIELD_CURVE | FLAT_POSITIVE | MODERATE
 
 POLÍTICA OPERACIONAL
