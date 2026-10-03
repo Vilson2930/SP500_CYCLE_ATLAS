@@ -1,56 +1,44 @@
 {
-  "generated_at": "2026-10-02T17:37:46.651790",
+  "generated_at": "2026-10-03T15:54:35.627372",
   "model": "nvidia/nemotron-3-super-120b-a12b",
   "audit": {
-    "audit_status": "CONFIRMED_WITH_WARNINGS",
-    "engine_consistency_score": 96.0,
-    "data_quality_score": 78.0,
+    "audit_status": "DATA_INSUFFICIENT",
+    "engine_consistency_score": 0,
+    "data_quality_score": 0,
     "ai_dissent": false,
     "regime_audit": {
       "engine_regime": "YELLOW_EXPENSIVE_BULL",
-      "assessment": "O regime operacional YELLOW_EXPENSIVE_BULL está totalmente alinhado com a política de contribuição (equity 0,6, reserve 0,4, existing_position HOLD) e com os limites estabelecidos para drawdown, momentum, CAPE, inflação, política monetária, curva de juros e produção industrial.",
-      "reason": "Todas as variáveis de entrada respeitam os thresholds do Atlas e a saída do motor corresponde exatamente ao regime esperado para aquele conjunto de condições."
+      "assessment": "AUDITORIA IA INDISPONÍVEL",
+      "reason": "O motor quantitativo foi preservado, mas a camada independente de IA não conseguiu concluir a auditoria."
     },
     "data_integrity": {
-      "assessment": "Os dados estão presentes e não há campos UNKNOWN ou valores ausentes; porém várias séries apresentam defasagem temporal de 1 a 2 meses, o que reduz a atualidade das informações utilizadas.",
-      "issues": [
-        "CAPE com lag de 1 mês (último valor de 2026-09-01)",
-        "Fed Funds com lag de 1 mês",
-        "Treasury 2Y e 10Y com lag de 1 mês",
-        "CPI com lag de 2 meses",
-        "Unemployment com lag de 1 mês",
-        "Sahm com lag de 1 mês",
-        "Industrial Production com lag de 2 meses"
-      ]
+      "assessment": "NÃO AUDITADO",
+      "issues": []
     },
     "rule_consistency": {
-      "assessment": "Cada classificação de regime (drawdown, momentum, valuation, trabalho, inflação, monetária, curva de juros) está de acordo com os thresholds definidos no documento de regras.",
+      "assessment": "NÃO AUDITADO",
       "issues": []
     },
     "policy_consistency": {
-      "assessment": "As frações de equity e reserve observadas (0,6 e 0,4) e a posição existente (HOLD) correspondem exatamente à política estabelecida para o regime YELLOW_EXPENSIVE_BULL.",
+      "assessment": "NÃO AUDITADO",
       "issues": []
     },
     "reserve_consistency": {
-      "assessment": "A reserva está no estágio 0, com fração de déploye 0,0 e status NOT_ACTIVE, o que é adequado pois o drawdown atual (0,0) está acima do limiar de ativação (-0,15).",
+      "assessment": "NÃO AUDITADO",
       "issues": []
     },
     "cross_evidence": {
-      "assessment": "Não há contradições materiais entre as evidences de valuation, momentum, drawdown, trabalho, produção industrial, inflação, política monetária, curva de juros, fase do ciclo, risco estrutural e timing de topo; o conjunto apoia a classificação de YELLOW_EXPENSIVE_BULL.",
+      "assessment": "NÃO AUDITADO",
       "contradictions": []
     },
     "warnings": [
-      "Defasagem de 1 a 2 meses em várias séries macroeconômicas pode reduzir a capacidade de detectar mudanças rápidas no ambiente de mercado.",
-      "O CAPE está em nível ultra‑extremo (percentil 0,984) próximo ao limite de 0,99; atualizações futuras poderiam afetar a classificação de valuation."
+      "Falha na camada de auditoria por IA. A conclusão original do Cycle Atlas não foi alterada."
     ],
-    "strengths": [
-      "Coerência perfeita entre o regime operacional indicado pelo motor e a política de alocação de contribuição.",
-      "Integridade dos dados de preço do S&P 500 e da posição existente, sem lacunas ou valores desconhecidos."
-    ],
+    "strengths": [],
     "manual_review_points": [
-      "Reavaliar a atualização das séries com defasagem (CAPE, Fed Funds, Treasuries, CPI, desemprego, Sahm, produção industrial) para confirmar que os valores mais recentes não alterariam as classificações atuais.",
-      "Monitorar a aproximação do percentil do CAPE ao limite de 0,99 para avaliar possível necessidade de ajuste de regras de valuation."
+      "Verificar disponibilidade da API de IA."
     ],
-    "final_opinion": "A execução atual do SP500 CYCLE ATLAS está internamente consistente: o regime operacional YELLOW_EXPENSIVE_BULL, as frações de equity e reserve, a posição existente e o status da reserva estão em plena conformidade com as regras fornecidas. A qualidade dos dados é boa, mas há defasagem temporal de 1 a 2 meses em várias séries macroeconômicas, o que merece atenção embora não gere inconsistência material. Não há contradições entre as evidences de valuation, momentum, drawdown, trabalho, inflação, política monetária, curva de juros, fase do ciclo, risco estrutural e timing de topo. Recomenda‑se revisão das séries defasgadas para garantir que futuras atualizações não alterem a classificação."
+    "final_opinion": "A auditoria independente por IA não pôde ser concluída nesta execução. O resultado quantitativo original do SP500 Cycle Atlas permanece intacto e deve ser interpretado sem validação adicional da camada de IA.",
+    "audit_error": "RuntimeError: NVIDIA NIM retornou erro HTTP 410: {\"type\":\"about:blank\",\"title\":\"Gone\",\"status\":410,\"detail\":\"The model 'nvidia/nemotron-3-super-120b-a12b' has reached its end of life on 2026-10-03T09:00:00Z and is no longer available.\"}\n"
   }
 }
