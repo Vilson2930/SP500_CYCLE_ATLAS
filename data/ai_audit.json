@@ -1,56 +1,44 @@
 {
-  "generated_at": "2026-10-19T18:30:13.761344",
+  "generated_at": "2026-10-20T16:31:24.172129",
   "model": "nvidia/nemotron-3-super-120b-a12b",
   "audit": {
-    "audit_status": "CONFIRMED_WITH_WARNINGS",
-    "engine_consistency_score": 100,
-    "data_quality_score": 80.0,
+    "audit_status": "DATA_INSUFFICIENT",
+    "engine_consistency_score": 0,
+    "data_quality_score": 0,
     "ai_dissent": false,
     "regime_audit": {
       "engine_regime": "YELLOW_EXPENSIVE_BULL",
-      "assessment": "O regime operacional está coerente com as evidências de valuation, momentum, drawdown, trabalho, produção industrial, inflação, política monetária e curva de juros.",
-      "reason": "Valuação extrema (CAPE 40,54, percentil 0,979) aliada a momentum positivo (return_12m 0,125), drawdown nulo, inflação moderada, política monetária neutra e curva de juros levemente positiva indicam fase de expansão tardia com valuation elevada, justificando o regime YELLOW_EXPENSIVE_BULL."
+      "assessment": "AUDITORIA IA INDISPONÍVEL",
+      "reason": "O motor quantitativo foi preservado, mas a camada independente de IA não conseguiu concluir a auditoria."
     },
     "data_integrity": {
-      "assessment": "Séries de preço e CAPE atualizadas; indicadores macro com defasagem de um mês, reduzindo a atualidade temporal.",
-      "issues": [
-        "Fed Funds (lag 1 mês)",
-        "Treasury 2Y (lag 1 mês)",
-        "Treasury 10Y (lag 1 mês)",
-        "CPI (lag 1 mês)",
-        "Unemployment (lag 1 mês)",
-        "Sahm (lag 1 mês)",
-        "Industrial Production (lag 1 mês)"
-      ]
+      "assessment": "NÃO AUDITADO",
+      "issues": []
     },
     "rule_consistency": {
-      "assessment": "Classificações e resultados obedecem às regras de thresholds do Atlas.",
+      "assessment": "NÃO AUDITADO",
       "issues": []
     },
     "policy_consistency": {
-      "assessment": "Alocação de equity, reserve e existing_position está em conformidade com a política de contribuição para o regime YELLOW_EXPENSIVE_BULL.",
+      "assessment": "NÃO AUDITADO",
       "issues": []
     },
     "reserve_consistency": {
-      "assessment": "Reserva está em estágio 0, não acionada, conforme drawdown zerado e regime não bloqueado.",
+      "assessment": "NÃO AUDITADO",
       "issues": []
     },
     "cross_evidence": {
-      "assessment": "Não há contradição material entre os indicadores de valuation, momentum, drawdown, trabalho, produção industrial, inflação, política monetária e curva de juros.",
+      "assessment": "NÃO AUDITADO",
       "contradictions": []
     },
     "warnings": [
-      "Dados macro com defasagem de um mês podem reduzir a relevância das leituras recentes."
+      "Falha na camada de auditoria por IA. A conclusão original do Cycle Atlas não foi alterada."
     ],
-    "strengths": [
-      "Séries de preço e CAPE com lag zero e alto número de observações.",
-      "Verificação determinística da política passou.",
-      "Coerência entre regime operacional e política de contribuição."
-    ],
+    "strengths": [],
     "manual_review_points": [
-      "Revisar frequência de atualização das séries macro (Fed Funds, Treasuries, CPI, desemprego, Sahm, produção industrial).",
-      "Considerar incorporação de dados mais recentes se disponíveis."
+      "Verificar disponibilidade da API de IA."
     ],
-    "final_opinion": "A auditoria constatou que o regime operacional YELLOW_EXPENSIVE_BULL é interno e coerente com as regras do Atlas, bem como com a política de contribuição e a situação da reserva. As séries de preço e CAPE estão atualizadas, enquanto vários indicadores macro apresentam defasagem de um mês, o que reduz a atualidade temporal mas não compromete a consistência do regime. Não foram identificadas contradições materiais entre os indicadores de valuation, momentum, drawdown, trabalho, produção industrial, inflação, política monetária e curva de juros. O status adequado é CONFIRMED_WITH_WARNINGS, indicando necessidade de revisão da frequência de atualização dos dados macro, mas sem exigir mudança no regime ou na alocação."
+    "final_opinion": "A auditoria independente por IA não pôde ser concluída nesta execução. O resultado quantitativo original do SP500 Cycle Atlas permanece intacto e deve ser interpretado sem validação adicional da camada de IA.",
+    "audit_error": "RuntimeError: NVIDIA NIM retornou erro HTTP 404: {\"status\":404,\"title\":\"Not Found\",\"detail\":\"Function 'ac74040f-9fc9-4c5e-ac74-279ba5161d69': Not found for account 'fMc9SlogXPcyghRWxfBCsptBfyA5VV10-4utt2461aM'\"}"
   }
 }
