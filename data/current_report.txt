@@ -3,7 +3,7 @@ S&P 500 HISTORICAL CYCLE ATLAS
 ========================================================================
 
 Data: 2026-10-01
-S&P 500: 7,570.30
+S&P 500: 7,580.07
 
 DIAGNÓSTICO DO CICLO
 ------------------------------------------------------------------------
@@ -34,14 +34,14 @@ Curva de juros    : FLAT_POSITIVE | NEUTRO | A curva está positiva, porém aind
 
 MERCADO
 ------------------------------------------------------------------------
-Drawdown         : -1.51%
-Momentum 12m     : 10.67%
+Drawdown         : -1.38%
+Momentum 12m     : 10.82%
 Idade do bull    : 4.08 anos
-Retorno do bull  : 111.13%
+Retorno do bull  : 111.40%
 
 VALUATION
 ------------------------------------------------------------------------
-CAPE             : 40.36
+CAPE             : 40.13
 Percentil CAPE   : 97.73%
 Classificação    : EXTREME_TOP_5
 
