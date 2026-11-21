@@ -3,13 +3,13 @@ S&P 500 HISTORICAL CYCLE ATLAS
 ========================================================================
 
 Data: 2026-11-01
-S&P 500: 6,980.57
+S&P 500: 6,910.39
 
 DIAGNÓSTICO DO CICLO
 ------------------------------------------------------------------------
 Regime de mercado : BULL MARKET
 Fase do ciclo     : LATE_EXPANSION / VALUATION_EXTREME
-Risco estrutural  : MODERATE
+Risco estrutural  : HIGH
 Timing de topo    : NOT_CONFIRMED
 Regime operacional: YELLOW_EXPENSIVE_BULL
 
@@ -34,15 +34,15 @@ Curva de juros    : FLAT_POSITIVE | NEUTRO | A curva está positiva, porém aind
 
 MERCADO
 ------------------------------------------------------------------------
-Drawdown         : -9.18%
-Momentum 12m     : 1.92%
+Drawdown         : -10.09%
+Momentum 12m     : 0.90%
 Idade do bull    : 4.17 anos
-Retorno do bull  : 94.68%
+Retorno do bull  : 92.73%
 
 VALUATION
 ------------------------------------------------------------------------
-CAPE             : 39.95
-Percentil CAPE   : 97.64%
+CAPE             : 36.44
+Percentil CAPE   : 95.62%
 Classificação    : EXTREME_TOP_5
 
 MACRO & MONETÁRIO
@@ -60,7 +60,7 @@ CLASSIFICAÇÕES
 ------------------------------------------------------------------------
 Valuation       : EXTREME_TOP_5
 Momentum        : POSITIVE
-Drawdown        : NORMAL
+Drawdown        : WARNING
 Labor           : STABLE
 Industrial      : EXPANSION
 Inflation       : MODERATE
